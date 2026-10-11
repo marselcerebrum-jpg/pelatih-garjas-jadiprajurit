@@ -59,6 +59,13 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
 .dot{display:inline-block;width:10px;height:10px;border-radius:5px;margin-right:6px;vertical-align:0}
 #run .btn{background:#F3F2EC;color:#101511}
 #run .btn.ghost{background:transparent;color:#F3F2EC;border-color:#3A453E}
+#lap{min-height:84px;font-size:22px;border-radius:18px}
+#run .btn.jeda{background:#F2B27A;color:#3A2414}
+#lap-info{font-variant-numeric:tabular-nums}
+table.laps{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+table.laps th,table.laps td{padding:8px 6px;border-top:1px solid var(--line);text-align:right}
+table.laps th:first-child,table.laps td:first-child{text-align:left}
+table.laps th{font-size:12px;color:var(--muted);font-weight:600;border-top:0}
 #alert{position:fixed;inset:0;background:rgba(16,21,17,.92);display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
 #alert.on{display:flex}
 #alert .box{background:var(--card);color:var(--ink);border-radius:20px;padding:20px;max-width:440px;display:flex;flex-direction:column;gap:12px}
@@ -129,9 +136,14 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
       <span><span class="dot" id="step-dot" style="background:#F2A766"></span><span id="step-txt">Langkah: –</span></span>
       <span id="lap-txt"></span>
     </div>
+    <div id="lap-info" class="lbl" style="min-height:20px"></div>
     <div id="run-msg" class="lbl" style="min-height:20px"></div>
   </div>
-  <div class="btns"><button class="btn ghost" id="cancel">Batal</button><button class="btn" id="stop">Selesai</button></div>
+  <div class="stack" style="gap:8px">
+    <button class="btn" id="go" disabled>Menunggu sinyal GPS…</button>
+    <button class="btn" id="lap" style="display:none" aria-label="Tandai satu putaran">Putaran</button>
+    <div class="btns"><button class="btn ghost" id="cancel">Batal</button><button class="btn jeda" id="pause" style="display:none">Jeda</button><button class="btn" id="stop" style="display:none">Selesai</button></div>
+  </div>
 </div>
 
 <div id="alert" role="alertdialog" aria-modal="true" aria-labelledby="alert-h">
@@ -166,12 +178,15 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
   $('#paham').addEventListener('change', function () {
     var on = $('#paham').checked;
     $('#start').disabled = !on;
-    $('#start').textContent = on ? 'Periksa GPS & mulai' : 'Centang peringatan di atas dulu';
+    $('#start').textContent = on ? 'Buka layar lari' : 'Centang peringatan di atas dulu';
     if (on) cekGps();
   });
   $('#start').addEventListener('click', mulai);
   $('#cancel').addEventListener('click', function () { if (confirm('Batalkan sesi lari ini?')) selesai(false); });
   $('#stop').addEventListener('click', function () { if (opt.mode === 'bebas' || confirm('Hentikan sebelum 12 menit? Hasil tidak dihitung sebagai tes.')) selesai(true); });
+  $('#go').addEventListener('click', function () { if (R && R.gpsBaik && !R.jalan && !R.mundur) hitungMundur(); });
+  $('#lap').addEventListener('click', tandaiPutaran);
+  $('#pause').addEventListener('click', jedaLanjut);
   $('#alert-ulang').addEventListener('click', function () { tutupAlert(); selesai(false); });
   $('#alert-lanjut').addEventListener('click', function () { tutupAlert(); });
 
@@ -202,14 +217,16 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
         t0: 0, jalan: false, akhir: false, dist: 0, last: null, pts: 0, buang: 0, akurasi: [],
         langkah: [], gerakAda: st === 'granted' && !!window.DeviceMotionEvent, gerakMasuk: false, accPrev: 0, langkahTerakhir: 0,
         cepatSejak: 0, tanpaLangkahSejak: 0, flags: {}, hilang: 0, hilangMulai: 0, menitDiumumkan: 0, lintasan: Number($('#lintasan').value) || 0,
-        kecSekarang: 0, gpsBaik: false
+        kecSekarang: 0, gpsBaik: false, laps: [], jeda: false, jedaMulai: 0, jedaTotal: 0
       };
       $('#t-lbl').textContent = opt.mode === 'tes' ? 'Sisa waktu' : 'Durasi';
       $('#t-val').textContent = opt.mode === 'tes' ? '12:00' : '0:00';
       $('#x-lbl').textContent = opt.mode === 'tes' ? 'Perkiraan akhir' : 'Kecepatan';
       $('#d-val').textContent = '0 m'; $('#p-val').textContent = '–'; $('#x-val').textContent = '–'; $('#x-sub').textContent = opt.mode === 'tes' ? 'nilai –' : 'km/jam';
       $('#run').classList.add('on');
-      $('#run-msg').textContent = 'Menunggu sinyal GPS yang cukup akurat…';
+      $('#go').style.display = ''; $('#go').disabled = true; $('#go').textContent = 'Menunggu sinyal GPS…';
+      $('#lap').style.display = 'none'; $('#pause').style.display = 'none'; $('#stop').style.display = 'none'; $('#lap-info').textContent = '';
+      $('#run-msg').textContent = 'Tunggu sampai sinyal GPS bagus, lalu tekan Mulai sekarang saat kamu siap di garis start.';
       jagaLayar();
       if (R.gerakAda) window.addEventListener('devicemotion', onMotion);
       watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
@@ -230,7 +247,7 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
       if (R.hilangMulai) {
         var det = Math.round((Date.now() - R.hilangMulai) / 1000);
         R.hilang += det; R.hilangMulai = 0;
-        if (R.jalan) {
+        if (R.jalan && !R.jeda) {
           R.flags.layar = 'Layar mati atau aplikasi ditinggalkan selama ' + det + ' detik';
           R.last = null;
           bukaAlert(det);
@@ -258,10 +275,11 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
     $('#gps-dot').style.background = acc <= 12 ? '#8CCB86' : gpsOk ? '#F2B27A' : '#E05A3A';
     $('#gps-txt').textContent = 'GPS: ±' + Math.round(acc) + ' m';
     if (!R.jalan) {
-      if (gpsOk) { R.gpsBaik = true; hitungMundur(); }
+      R.gpsBaik = gpsOk;
+      if (!R.mundur) { $('#go').disabled = !gpsOk; $('#go').textContent = gpsOk ? 'Mulai sekarang' : 'Menunggu sinyal GPS…'; }
       return;
     }
-    if (!gpsOk || document.hidden) { R.buang++; return; }
+    if (!gpsOk || document.hidden || R.jeda) { if (!R.jeda) R.buang++; return; }
     var titik = { lat: c.latitude, lon: c.longitude, t: now };
     if (R.last) {
       var d = jarak(R.last, titik), dt = (now - R.last.t) / 1000;
@@ -296,27 +314,53 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
   /* ---------- Waktu & pengecekan ---------- */
   function hitungMundur() {
     if (R.mundur) return; R.mundur = true;
-    var n = 3; $('#run-msg').textContent = 'GPS siap. Mulai dalam ' + n + '…'; bunyi(660, 0.15);
+    var n = 3; $('#go').disabled = true; $('#go').textContent = 'Bersiap…'; $('#run-msg').textContent = 'Mulai dalam ' + n + '…'; bunyi(660, 0.15);
     var iv = setInterval(function () {
       n--;
       if (n > 0) { $('#run-msg').textContent = 'Mulai dalam ' + n + '…'; bunyi(660, 0.15); }
-      else { clearInterval(iv); R.jalan = true; R.t0 = Date.now(); R.last = null; bunyi(990, 0.4); getar(200); ucap('Mulai'); $('#run-msg').textContent = ''; }
+      else {
+        clearInterval(iv); R.jalan = true; R.t0 = Date.now(); R.last = null; bunyi(990, 0.4); getar(200); ucap('Mulai'); $('#run-msg').textContent = '';
+        $('#go').style.display = 'none'; $('#lap').style.display = ''; $('#stop').style.display = '';
+        if (opt.mode === 'bebas') $('#pause').style.display = '';
+        $('#lap-info').textContent = 'Tekan Putaran setiap melewati garis start.';
+      }
     }, 1000);
   }
   function fmtW(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   function fmtM(m) { return Math.round(m).toLocaleString('id-ID') + ' m'; }
   function nilai(m) { var t = TABEL[opt.gender]; if (m <= t[0][0]) return 0; if (m >= t[1][0]) return 100; return Math.round((m - t[0][0]) / (t[1][0] - t[0][0]) * 100); }
+  function waktuAktif() {
+    if (!R || !R.jalan) return 0;
+    var now = R.akhirT || Date.now();
+    return (now - R.t0 - R.jedaTotal - (R.jeda ? now - R.jedaMulai : 0)) / 1000;
+  }
+  function tandaiPutaran() {
+    if (!R || !R.jalan || R.akhir || R.jeda) return;
+    var t = waktuAktif(), prev = R.laps.length ? R.laps[R.laps.length - 1] : { t: 0, d: 0 };
+    if (t - prev.t < 3) return;
+    var lap = { n: R.laps.length + 1, t: t, d: R.dist, split: t - prev.t, dGps: R.dist - prev.d };
+    R.laps.push(lap);
+    bunyi(1046, 0.12); getar(80); ucap('Putaran ' + lap.n);
+    var cepat = R.laps.length > 1 ? Math.min.apply(null, R.laps.map(function (l) { return l.split; })) : null;
+    $('#lap-info').innerHTML = 'Putaran ' + lap.n + ': <b>' + fmtW(lap.split) + '</b>' + (R.laps.length > 1 ? ' · sebelumnya ' + fmtW(R.laps[R.laps.length - 2].split) + (lap.split <= cepat ? ' · tercepat' : '') : '') + (R.lintasan ? ' · ' + fmtM(lap.n * R.lintasan) + ' menurut putaran' : '');
+  }
+  function jedaLanjut() {
+    if (!R || !R.jalan || R.akhir || opt.mode !== 'bebas') return;
+    if (!R.jeda) { R.jeda = true; R.jedaMulai = Date.now(); $('#pause').textContent = 'Lanjutkan'; $('#lap').disabled = true; $('#run-msg').textContent = 'Dijeda. Waktu dan jarak berhenti dihitung.'; bunyi(440, 0.2); }
+    else { R.jedaTotal += Date.now() - R.jedaMulai; R.jeda = false; R.last = null; $('#pause').textContent = 'Jeda'; $('#lap').disabled = false; $('#run-msg').textContent = ''; bunyi(880, 0.2); }
+  }
   function tick() {
     if (!R || !R.jalan || R.akhir) return;
-    var det = (Date.now() - R.t0) / 1000 - 0;
+    var det = waktuAktif();
+    if (R.jeda) { $('#t-val').textContent = fmtW(det); return; }
     var aktif = Math.max(1, det);
     $('#t-val').textContent = opt.mode === 'tes' ? fmtW(DURASI_TES - det) : fmtW(det);
     $('#d-val').textContent = fmtM(R.dist);
     if (R.dist > 50) { var pace = aktif / (R.dist / 1000); $('#p-val').textContent = fmtW(pace); }
     if (opt.mode === 'tes') {
       if (det > 30 && R.dist > 50) { var proyeksi = R.dist / det * DURASI_TES; $('#x-val').textContent = fmtM(proyeksi); $('#x-sub').textContent = 'nilai ±' + nilai(proyeksi); }
-    } else { $('#x-val').textContent = (R.dist / aktif * 3.6).toFixed(1); }
-    if (R.lintasan) $('#lap-txt').textContent = '≈ ' + (R.dist / R.lintasan).toFixed(1) + ' putaran';
+    } else { $('#x-val').textContent = (R.dist / aktif * 3.6).toFixed(1).replace('.', ','); }
+    if (R.lintasan) $('#lap-txt').textContent = '≈ ' + (R.dist / R.lintasan).toFixed(1).replace('.', ',') + ' putaran';
 
     // Pengecekan langkah dan kecepatan
     var cad = R.gerakAda && R.gerakMasuk ? cadence() : null;
@@ -349,7 +393,9 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
   function selesai(tampil) {
     if (!R || R.akhir) return;
     R.akhir = true;
-    var det = R.jalan ? Math.min(opt.mode === 'tes' ? DURASI_TES : 1e9, Math.round((Date.now() - R.t0) / 1000)) : 0;
+    if (R.jeda) { R.jedaTotal += Date.now() - R.jedaMulai; R.jeda = false; }
+    R.akhirT = Date.now();
+    var det = R.jalan ? Math.min(opt.mode === 'tes' ? DURASI_TES : 1e9, Math.round(waktuAktif())) : 0;
     hentikanSensor();
     if (tampil && R.jalan) tampilHasil(det);
   }
@@ -365,13 +411,24 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
     h += '<div class="hero"><span class="pill' + (sah ? '' : ' bad') + '">' + (sah ? 'Terverifikasi GPS' + (R.gerakMasuk ? ' + langkah' : '') : (opt.mode === 'tes' ? 'Tidak sah sebagai tes' : 'Latihan')) + '</span>';
     h += '<div class="soft">Jarak dalam ' + fmtW(det) + '</div><div class="res-num">' + fmtM(R.dist) + '</div>';
     if (tesPenuh) h += '<div class="soft" style="color:var(--hero-ink)">Perkiraan nilai lari 12 menit: <b>' + nilai(R.dist) + '</b> (tabel ' + opt.gender.toLowerCase() + ', usia 18–25)</div>';
-    h += '<div class="soft">Pace rata-rata ' + (R.dist > 50 ? fmtW(det / (R.dist / 1000)) + ' menit/km' : '–') + (R.lintasan ? ' · ≈ ' + (R.dist / R.lintasan).toFixed(1) + ' putaran lintasan ' + R.lintasan + ' m' : '') + '</div></div>';
+    h += '<div class="soft">Pace rata-rata ' + (R.dist > 50 ? fmtW(det / (R.dist / 1000)) + ' menit/km' : '–') + (R.lintasan ? ' · ≈ ' + (R.dist / R.lintasan).toFixed(1).replace('.', ',') + ' putaran lintasan ' + R.lintasan + ' m' : '') + '</div></div>';
     h += '<div class="card stack"><h2>Pemeriksaan</h2><ul class="steps">';
     h += '<li>Layar tetap menyala: ' + (R.flags.layar ? '<b style="color:var(--warn)">tidak</b> (' + esc(R.flags.layar) + ')' : '<b style="color:var(--good)">ya</b>') + '</li>';
     h += '<li>Akurasi GPS rata-rata: ' + (akurasiRata ? '±' + Math.round(akurasiRata) + ' m' : '–') + '</li>';
     flags.filter(function (f) { return f !== R.flags.layar; }).forEach(function (f) { h += '<li style="color:var(--warn)">' + esc(f) + '</li>'; });
     if (!tesPenuh && opt.mode === 'tes') h += '<li style="color:var(--warn)">Dihentikan sebelum 12 menit</li>';
     h += '</ul></div>';
+    if (R.laps.length) {
+      var cepat = Math.min.apply(null, R.laps.map(function (l) { return l.split; }));
+      h += '<div class="card stack"><h2>Putaran</h2><div style="overflow-x:auto"><table class="laps"><thead><tr><th>Putaran</th><th>Waktu</th><th>Total</th><th>Jarak GPS</th></tr></thead><tbody>';
+      R.laps.forEach(function (l) { h += '<tr><td>' + l.n + (l.split === cepat && R.laps.length > 1 ? ' <span class="tiny" style="color:var(--good);font-weight:700">tercepat</span>' : '') + '</td><td>' + fmtW(l.split) + '</td><td>' + fmtW(l.t) + '</td><td>' + fmtM(l.dGps) + '</td></tr>'; });
+      h += '</tbody></table></div>';
+      if (R.lintasan) {
+        var akhirLap = R.laps[R.laps.length - 1], dLap = akhirLap.n * R.lintasan, selisih = akhirLap.d - dLap, pct = dLap ? Math.abs(selisih) / dLap * 100 : 0;
+        h += '<p class="small" style="margin:0">Sampai putaran ke-' + akhirLap.n + ': menurut lintasan <b>' + fmtM(dLap) + '</b>, menurut GPS <b>' + fmtM(akhirLap.d) + '</b> (selisih ' + (selisih >= 0 ? '+' : '−') + fmtM(Math.abs(selisih)) + ', ' + pct.toFixed(1).replace('.', ',') + '%). Angka ini berguna untuk menguji akurasi GPS.</p>';
+      }
+      h += '</div>';
+    }
     h += '<div class="note small">Ini versi prototipe. Hasilnya belum tersimpan ke catatan Pelatih Garjas. Untuk uji akurasi, bandingkan dengan jarak yang dihitung manual dari jumlah putaran lintasan.</div>';
     h += '<div class="btns"><button class="btn" id="again">Ulangi</button><a class="btn ghost" href="./">Ke Pelatih Garjas</a></div></div>';
     $('#setup').style.display = 'none';
