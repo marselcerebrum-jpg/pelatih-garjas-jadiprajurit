@@ -12,7 +12,7 @@
  * Version: New version → Deploy. JANGAN pilih "New deployment", karena URL-nya berubah.
  */
 
-var VERSI_BACKEND = '2026.10.11-4';
+var VERSI_BACKEND = '2026.10.11-5';
 var TZ = 'Asia/Jakarta';
 
 var TAB = {
@@ -26,7 +26,7 @@ var TAB = {
 var KOLOM_PESERTA = ['ID Peserta', 'Tanggal Daftar', 'Nama Lengkap', 'Email JadiPrajurit', 'No. WhatsApp',
   'Jenis Kelamin', 'Usia', 'Tinggi (cm)', 'Berat (kg)', 'Domisili', 'Matra', 'Jalur', 'Tanggal Tes',
   'Target Nilai', 'Persetujuan Data', 'Terakhir Diperbarui', 'Jumlah Catatan', 'Nilai Garjas Terbaru',
-  'Terakhir Latihan', 'Disimpan Admin', 'Simpan Nomor Admin'];
+  'Terakhir Latihan', 'Disimpan Admin', 'Simpan Nomor Admin', 'Tampil di Peringkat', 'Kode Bagikan', 'Diajak Oleh'];
 var KOLOM_CATATAN = ['ID Catatan', 'Waktu Input', 'Email JadiPrajurit', 'Nama Lengkap', 'Tanggal',
   'Lari 12 Menit (m)', 'Pull-up/Chinning (kali)', 'Sit-up (kali)', 'Push-up (kali)', 'Shuttle Run (detik)',
   'Simulasi', 'Nilai Garjas', 'Catatan'];
@@ -157,8 +157,10 @@ function doGet(e) {
   try {
     if (aksi === 'ping') return json_({ ok: true, versi: VERSI_BACKEND, waktu: sekarang_() });
     if (aksi === 'config') return json_(ambilConfig_());
+    if (aksi === 'hasil') return json_(hasilPublik_(e.parameter.k));
     return json_({ ok: false, kode: 'aksi_tidak_dikenal' });
   } catch (err) {
+    if (err && err.kode) return json_({ ok: false, kode: err.kode, pesan: err.pesan || '' });
     return json_({ ok: false, kode: 'server', pesan: String(err && err.message || err) });
   }
 }
@@ -173,6 +175,7 @@ function doPost(e) {
       case 'simpanProfil': return json_(simpanProfil_(body.email, body.profil || {}));
       case 'tambahCatatan': return json_(tambahCatatan_(body.email, body.catatan || {}, body.ringkasan || {}));
       case 'konfirmasiKontak': return json_(konfirmasiKontak_(body.email));
+      case 'leaderboard': return json_(leaderboard_(body.email));
       case 'hapusCatatan': return json_(hapusCatatan_(body.email, body.id, body.ringkasan || {}));
     }
     return json_({ ok: false, kode: 'aksi_tidak_dikenal' });
@@ -229,10 +232,14 @@ function daftar_(p) {
     if (cariBaris_(sh, 4, v.email) > 0) throw { kode: 'email_terdaftar' };
     var id = 'P' + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase();
     var waktu = sekarang_();
+    var diajak = '';
+    var ref = String(p.ref || '').toUpperCase();
+    if (/^[A-Z0-9]{6,12}$/.test(ref)) { var rb = cariBaris_(sh, 23, ref); if (rb > 0) diajak = String(sh.getRange(rb, 1).getValue()); }
     sh.appendRow([id, waktu.slice(0, 10), teks_(v.name, 80), v.email, '+' + v.wa, v.gender, v.age, v.height, v.weight,
       teks_(v.domisili, 60), v.matra, v.jalur, v.testDate, v.target, 'Ya (' + waktu.slice(0, 10) + ')', waktu, 0, '', '',
-      'Ya', '']);
+      'Ya', '', 'Ya', kodeBaru_(sh), diajak]);
     antreKontak_(id, v.name, v.wa, v.email);
+    hapusCache_();
     return { ok: true, profil: profilPublik_(sh, sh.getLastRow()), catatan: [] };
   });
 }
@@ -243,6 +250,7 @@ function masuk_(email) {
   var sh = tab_(TAB.PESERTA);
   var baris = cariBaris_(sh, 4, email);
   if (baris < 0) throw { kode: 'tidak_ditemukan' };
+  if (!String(sh.getRange(baris, 23).getValue())) denganKunci_(function () { pastikanKode_(sh, baris); });
   return { ok: true, profil: profilPublik_(sh, baris), catatan: catatanMilik_(email) };
 }
 
@@ -259,6 +267,9 @@ function simpanProfil_(email, p) {
     sh.getRange(baris, 3).setValue(teks_(v.name, 80));
     sh.getRange(baris, 5, 1, 10).setValues([['+' + v.wa, v.gender, v.age, v.height, v.weight, teks_(v.domisili, 60), v.matra, v.jalur, v.testDate, v.target]]);
     sh.getRange(baris, 16).setValue(sekarang_());
+    sh.getRange(baris, 22).setValue(p.tampilLeaderboard === false ? 'Tidak' : 'Ya');
+    pastikanKode_(sh, baris);
+    hapusCache_();
     return { ok: true, profil: profilPublik_(sh, baris) };
   });
 }
@@ -276,6 +287,7 @@ function tambahCatatan_(email, c, ringkasan) {
     sh.appendRow([v.id, sekarang_(), email, String(nama), v.tanggal, v.items.lari, v.items.pullup, v.items.situp,
       v.items.pushup, v.items.shuttle, v.sim ? 'Ya' : 'Tidak', v.garjas, teks_(v.note, 200)]);
     tulisRingkasan_(ps, baris, ringkasan);
+    hapusCache_();
     return { ok: true };
   });
 }
@@ -294,8 +306,144 @@ function hapusCatatan_(email, id, ringkasan) {
       sh.deleteRow(b);
     }
     tulisRingkasan_(ps, baris, ringkasan);
+    hapusCache_();
     return { ok: true };
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Peringkat dan hasil yang bisa dibagikan                             */
+/* ------------------------------------------------------------------ */
+
+var KUNCI_CACHE = 'rekap_v1';
+
+function hapusCache_() { try { CacheService.getScriptCache().remove(KUNCI_CACHE); } catch (e) { } }
+
+function kodeBaru_(sh) {
+  var huruf = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  for (var n = 0; n < 20; n++) {
+    var k = '';
+    for (var i = 0; i < 8; i++) k += huruf.charAt(Math.floor(Math.random() * huruf.length));
+    if (cariBaris_(sh, 23, k) < 0) return k;
+  }
+  return 'K' + Date.now().toString(36).toUpperCase();
+}
+
+function pastikanKode_(sh, baris) {
+  if (!String(sh.getRange(baris, 23).getValue())) sh.getRange(baris, 23).setValue(kodeBaru_(sh));
+  if (!String(sh.getRange(baris, 22).getValue())) sh.getRange(baris, 22).setValue('Ya');
+}
+
+/* Nama yang tampil ke publik: nama depan + inisial nama kedua, misal "Faisal D." */
+function namaTampil_(nama) {
+  var bagian = String(nama || '').replace(/^'/, '').trim().split(/\s+/);
+  var depan = (bagian[0] || 'Casis').slice(0, 15);
+  return bagian.length > 1 && bagian[1] ? depan + ' ' + bagian[1].charAt(0).toUpperCase() + '.' : depan;
+}
+
+function skor_(tabel, raw) {
+  if (raw === '' || raw === null || raw === undefined || !isFinite(raw)) return null;
+  var t = tabel;
+  if (raw <= t[0][0]) return t[0][1];
+  if (raw >= t[t.length - 1][0]) return t[t.length - 1][1];
+  for (var i = 1; i < t.length; i++) {
+    if (raw <= t[i][0]) {
+      var a = t[i - 1], b = t[i];
+      var v = a[1] + (b[1] - a[1]) * (raw - a[0]) / (b[0] - a[0]);
+      return Math.max(0, Math.min(100, Math.round(v * 10) / 10));
+    }
+  }
+  return null;
+}
+
+function garjas_(sc) {
+  var a = sc.lari;
+  var bs = ['pullup', 'situp', 'pushup', 'shuttle'].map(function (k) { return sc[k]; }).filter(function (v) { return v != null; });
+  if (a == null && !bs.length) return null;
+  var b = bs.length ? bs.reduce(function (x, y) { return x + y; }, 0) / bs.length : null;
+  if (a != null && b != null) return Math.round((a + b) / 2 * 10) / 10;
+  return Math.round((a != null ? a : b) * 10) / 10;
+}
+
+/* Rekap semua casis (disimpan di cache 5 menit, dihapus setiap ada data baru). */
+function rekapSemua_() {
+  var cache = CacheService.getScriptCache();
+  var c = cache.get(KUNCI_CACHE);
+  if (c) return JSON.parse(c);
+  var cfg = ambilConfig_();
+  var ps = tab_(TAB.PESERTA), ct = tab_(TAB.CATATAN);
+  var np = ps.getLastRow() - 1, nc = ct.getLastRow() - 1;
+  var peserta = np > 0 ? ps.getRange(2, 1, np, KOLOM_PESERTA.length).getValues() : [];
+  var catatan = nc > 0 ? ct.getRange(2, 1, nc, KOLOM_CATATAN.length).getValues() : [];
+  var perEmail = {};
+  catatan.forEach(function (r) {
+    var em = normEmail_(r[2]);
+    (perEmail[em] = perEmail[em] || []).push({ d: tgl_(r[4]), it: [r[5], r[6], r[7], r[8], r[9]] });
+  });
+  var hariIni = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  var batas = Utilities.formatDate(new Date(Date.now() - 6 * 86400000), TZ, 'yyyy-MM-dd');
+  var list = peserta.map(function (r) {
+    var em = normEmail_(r[3]);
+    var logs = (perEmail[em] || []).sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
+    var g = String(r[5]) === 'Wanita' ? 'Wanita' : 'Pria';
+    var latest = {}, sc = {}, lengkap = true, hari = {};
+    logs.forEach(function (l) {
+      ITEM_KEYS.forEach(function (k, i) { var v = l.it[i]; if (v !== '' && v !== null && isFinite(Number(v))) latest[k] = Number(v); });
+      if (l.d >= batas && l.d <= hariIni) hari[l.d] = 1;
+    });
+    ITEM_KEYS.forEach(function (k) {
+      sc[k] = latest[k] != null ? skor_(cfg.standar[g][k], latest[k]) : null;
+      if (sc[k] == null) lengkap = false;
+    });
+    return {
+      em: em, nama: namaTampil_(r[2]), matra: String(r[10]), jalur: String(r[11]), gender: g,
+      tampil: String(r[21]) !== 'Tidak', kode: String(r[22] || ''), target: Number(r[13]) || 70,
+      nilai: garjas_(sc), lengkap: lengkap, hari: Object.keys(hari).length, total: logs.length, latest: latest, sc: sc
+    };
+  });
+  var data = { waktu: sekarang_(), list: list };
+  try { cache.put(KUNCI_CACHE, JSON.stringify(data), 300); } catch (e) { }
+  return data;
+}
+
+function urutanPeringkat_(list) {
+  var nilai = list.filter(function (x) { return x.tampil && x.lengkap && x.nilai != null; })
+    .sort(function (a, b) { return b.nilai - a.nilai || b.total - a.total; });
+  var rajin = list.filter(function (x) { return x.tampil && x.hari > 0; })
+    .sort(function (a, b) { return b.hari - a.hari || b.total - a.total; });
+  return { nilai: nilai, rajin: rajin };
+}
+
+function leaderboard_(email) {
+  var me = normEmail_(email);
+  var data = rekapSemua_();
+  var u = urutanPeringkat_(data.list);
+  var pub = function (x, i) {
+    return { rank: i + 1, nama: x.nama, matra: x.matra, jalur: x.jalur, gender: x.gender, nilai: x.nilai, hari: x.hari, saya: x.em === me };
+  };
+  var self = data.list.filter(function (x) { return x.em === me; })[0];
+  var posisi = function (arr) { for (var i = 0; i < arr.length; i++) if (arr[i].em === me) return i + 1; return null; };
+  return {
+    ok: true, waktu: data.waktu,
+    nilai: u.nilai.slice(0, 100).map(pub), rajin: u.rajin.slice(0, 100).map(pub),
+    totalNilai: u.nilai.length, totalRajin: u.rajin.length,
+    saya: self ? { rankNilai: posisi(u.nilai), rankRajin: posisi(u.rajin), lengkap: self.lengkap, tampil: self.tampil, nilai: self.nilai, hari: self.hari } : null
+  };
+}
+
+function hasilPublik_(kode) {
+  kode = String(kode || '').toUpperCase();
+  if (!/^[A-Z0-9]{6,12}$/.test(kode)) throw { kode: 'tidak_ditemukan' };
+  var data = rekapSemua_();
+  var x = data.list.filter(function (y) { return y.kode === kode; })[0];
+  if (!x) throw { kode: 'tidak_ditemukan' };
+  var u = urutanPeringkat_(data.list), rank = null;
+  for (var i = 0; i < u.nilai.length; i++) if (u.nilai[i].kode === kode) { rank = i + 1; break; }
+  return {
+    ok: true, nama: x.nama, matra: x.matra, jalur: x.jalur, gender: x.gender, nilai: x.nilai, lengkap: x.lengkap,
+    target: x.target, total: x.total, rankNilai: rank, totalNilai: u.nilai.length,
+    items: ITEM_KEYS.map(function (k) { return { key: k, raw: x.latest[k] != null ? x.latest[k] : null, nilai: x.sc[k] }; })
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -388,7 +536,9 @@ function profilPublik_(sh, baris) {
     weight: r[8] === '' ? '' : Number(r[8]), domisili: String(r[9]).replace(/^'/, ''), matra: String(r[10]),
     jalur: String(r[11]), testDate: tgl_(r[12]), target: Number(r[13]) || 70, waTerisi: String(r[4]).replace(/\D/g, '').length > 8,
     disimpanAdmin: String(r[19]) === 'Ya',
-    kontakAdmin: /^Ya/.test(String(r[20]))
+    kontakAdmin: /^Ya/.test(String(r[20])),
+    tampilLeaderboard: String(r[21]) !== 'Tidak',
+    kodeBagikan: String(r[22] || '')
   };
 }
 

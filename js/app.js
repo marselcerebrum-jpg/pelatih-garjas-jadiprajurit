@@ -4,12 +4,12 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-4';
-  var BACKEND_DIHARAPKAN = '2026.10.11-4';
+  var VERSI = '2026.10.11-5';
+  var BACKEND_DIHARAPKAN = '2026.10.11-5';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
   var N = window.Nilai, ITEMS = N.ITEMS;
-  var LS_SESI = 'pelatih-garjas-sesi-v1', LS_CONFIG = 'pelatih-garjas-config-v1';
+  var LS_SESI = 'pelatih-garjas-sesi-v1', LS_CONFIG = 'pelatih-garjas-config-v1', LS_REF = 'pelatih-garjas-ref';
   var HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
   /* ---------------- Util ---------------- */
@@ -49,7 +49,7 @@
     var ctl = window.AbortController ? new AbortController() : null;
     var t = setTimeout(function () { if (ctl) ctl.abort(); }, 30000);
     var req = method === 'GET'
-      ? fetch(url + '?action=' + encodeURIComponent(action) + '&t=' + Date.now(), { signal: ctl && ctl.signal })
+      ? fetch(url + '?action=' + encodeURIComponent(action) + Object.keys(data || {}).map(function (k) { return '&' + k + '=' + encodeURIComponent(data[k]); }).join('') + '&t=' + Date.now(), { signal: ctl && ctl.signal })
       : fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: action }, data || {})), signal: ctl && ctl.signal });
     return req.then(function (r) { return r.json(); }, function () { throw { kode: 'jaringan' }; })
       .then(function (j) { clearTimeout(t); if (!j || !j.ok) throw j || { kode: 'server' }; return j; },
@@ -140,14 +140,22 @@
     chart: '<path d="M4 20V4M4 20h16"/><path d="m7 15 4-4 3 3 5-6"/>',
     cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
-    flame: '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2-5.5 1 1 1.5 2 1.5 3 0-3 .5-5.5 1.5-7.5z"/>'
+    flame: '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2-5.5 1 1 1.5 2 1.5 3 0-3 .5-5.5 1.5-7.5z"/>',
+    trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
+    share: '<path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 3v12M7 8l5-5 5 5"/>',
+    back: '<path d="m15 18-6-6 6-6"/>'
   };
   function icon(n, size) { return '<svg aria-hidden="true" width="' + (size || 22) + '" height="' + (size || 22) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + IC[n] + '</svg>'; }
-  var TABS = [['beranda', 'Beranda', 'home'], ['catat', 'Catat', 'plus'], ['progres', 'Progres', 'chart'], ['program', 'Program', 'cal'], ['profil', 'Profil', 'user']];
+  var TABS = [['beranda', 'Beranda', 'home'], ['catat', 'Catat', 'plus'], ['progres', 'Progres', 'chart'], ['peringkat', 'Peringkat', 'trophy'], ['program', 'Program', 'cal'], ['profil', 'Profil', 'user']];
   function renderNav() {
     $('#nav').innerHTML = TABS.map(function (t) { return '<button type="button" data-tab="' + t[0] + '"' + (tab === t[0] ? ' aria-current="page"' : '') + '>' + icon(t[2]) + '<span>' + t[1] + '</span></button>'; }).join('');
   }
-  function go(t) { tab = t; render(); window.scrollTo(0, 0); }
+  function go(t) {
+    tab = t;
+    if (t === 'peringkat') muatLB(false);
+    if (t === 'bagikan') siapkanBagikan();
+    render(); window.scrollTo(0, 0);
+  }
 
   /* ---------------- Pendaftaran & masuk ---------------- */
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -167,7 +175,8 @@
     h += '<label class="f">Domisili (kota/kabupaten)<input class="in" id="p-domisili" maxlength="60" value="' + esc(p.domisili) + '" placeholder="Misal: Kota Bandung"></label>';
     h += '<div class="grid2"><label class="f">Matra *<select class="in" id="p-matra">' + opt(['AD', 'AL', 'AU'], p.matra || 'AD') + '</select></label><label class="f">Jalur *<select class="in" id="p-jalur">' + opt(['Tamtama', 'Bintara', 'Akmil', 'PA PK'], p.jalur || 'Bintara') + '</select></label></div>';
     h += '<div class="grid2"><label class="f">Tanggal tes jasmani<input class="in" type="date" id="p-test" value="' + esc(p.testDate) + '"></label><label class="f">Target nilai<input class="in" type="number" inputmode="numeric" id="p-target" min="1" max="100" value="' + esc(p.target || (CFG && CFG.targetDefault) || 70) + '"></label></div>';
-    if (isNew) h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="p-consent" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"> <span>Saya setuju data diri dan hasil latihan saya disimpan dan dikelola tim JadiPrajurit, serta nomor WhatsApp saya disimpan admin JadiPrajurit untuk info dan pendampingan latihan.</span></label>';
+    if (!isNew) h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="p-lb" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"' + (p.tampilLeaderboard !== false ? ' checked' : '') + '> <span>Tampilkan nama depan dan nilaiku di Peringkat casis</span></label>';
+    if (isNew) h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="p-consent" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"> <span>Saya setuju data diri dan hasil latihan saya disimpan dan dikelola tim JadiPrajurit, serta nomor WhatsApp saya disimpan admin JadiPrajurit untuk info dan pendampingan latihan. Nama depan dan nilai saya dapat tampil di Peringkat casis (bisa dimatikan di Profil).</span></label>';
     return h;
   }
   function readProfileForm(isNew) {
@@ -188,6 +197,7 @@
     var hg = num(o.height); if (o.height !== '' && (hg == null || hg < 120 || hg > 220)) err.push('tinggi badan (120–220 cm)');
     var wg = num(o.weight); if (o.weight !== '' && (wg == null || wg < 30 || wg > 160)) err.push('berat badan (30–160 kg)');
     if (isNew) { o.consent = $('#p-consent').checked; if (!o.consent) err.push('persetujuan penyimpanan data'); }
+    else o.tampilLeaderboard = $('#p-lb').checked;
     return { data: o, err: err };
   }
   function brand() { return '<div class="brand"><img src="assets/favicon.svg" alt="" width="28" height="28">Pelatih Garjas · JadiPrajurit</div>'; }
@@ -215,7 +225,10 @@
     draftDaftar = r.data;
     if (r.err.length) { setAuthMsg('Lengkapi: ' + r.err.join(', ') + '.'); return; }
     busy = true; authMsg = ''; render();
+    var ref = lsGet(LS_REF);
+    if (ref) r.data.ref = ref;
     api('daftar', { profil: r.data }).then(function (j) {
+      lsSet(LS_REF, null);
       busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; simpanSesi();
       draftDaftar = {}; tab = 'beranda'; pendingAutoOpen = true; render(); toast('Pendaftaran berhasil!');
     }, function (e) {
@@ -250,6 +263,8 @@
     h += '<div class="hbar" role="img" aria-label="Nilai ' + fmtNum(g, 1) + ' dari target ' + fmtNum(tg, 0) + '"><i style="width:' + Math.max(2, Math.min(100, g || 0)) + '%"></i><b style="left:calc(' + Math.min(100, tg) + '% - 1px)"></b></div>';
     h += '<div class="soft" style="color:var(--hero-ink)">' + (gap > 0 ? 'Kurang ' + fmtNum(gap, 1) + ' poin.' + (weak.length ? ' Fokus utama: ' + weak.slice(0, 2).map(function (it) { return '<b>' + esc(itemLabel(it).toLowerCase()) + '</b>'; }).join(' dan ') + '.' : '') : 'Nilaimu sudah di atas target. Pertahankan konsistensi sampai hari tes.') + '</div>';
     if (Object.keys(cur.latest).length < ITEMS.length) h += '<div class="soft">Sebagian item belum pernah dicatat, jadi prediksi belum lengkap.</div>';
+    var sy = LB.data && LB.data.saya;
+    h += '<div class="row" style="align-items:center"><span class="soft">' + (sy && sy.rankNilai ? 'Peringkat #' + sy.rankNilai + ' dari ' + LB.data.totalNilai + ' casis' : (sy && !sy.lengkap ? 'Catat kelima item untuk masuk peringkat' : '')) + '</span><button type="button" class="btn small" data-go="bagikan" style="background:var(--hero-ink);color:var(--hero)">' + icon('share', 18) + 'Bagikan</button></div>';
     h += '</section>';
 
     var plan = programSekarang(), idx = (new Date().getDay() + 6) % 7, today = plan.hari[idx];
@@ -323,6 +338,7 @@
   function viewCatat() {
     var h = '<div class="top"><div><h1>Catat latihan</h1><div class="sub">Isi hasil yang kamu lakukan hari ini. Item yang tidak dilatih boleh dikosongkan.</div></div></div>';
     h += viewTimer();
+    h += '<div class="card stack"><div class="row"><h2>Push-up dihitung kamera</h2><span class="tag">Prototipe</span></div><p class="small muted" style="margin:0">Taruh HP di samping badan, kamera menghitung push-up yang sah dan menolak gerakan yang salah.</p><a class="btn ghost" href="pushup.html">Coba sekarang</a></div>';
     h += '<div class="card stack"><label class="f">Tanggal<input class="in" type="date" id="f-date" value="' + esc(draft.date) + '" max="' + todayStr() + '"></label>';
     ITEMS.forEach(function (it) {
       var v = draft.items[it.key], s = v != null ? score(it.key, v) : null;
@@ -356,7 +372,7 @@
     S.catatan.pop();
     busy = true; render();
     api('tambahCatatan', { email: S.email, catatan: Object.assign({ garjas: N.garjasItems(items, gender()) }, log), ringkasan: rk }).then(function () {
-      busy = false; S.catatan.push(log); simpanSesi();
+      busy = false; S.catatan.push(log); simpanSesi(); LB.at = 0;
       var after = currentScores(), msgs = [];
       ITEMS.forEach(function (it) { if (items[it.key] == null) return; var s = score(it.key, items[it.key]); if (bests[it.key] != null && s > bests[it.key]) msgs.push('rekor baru ' + itemLabel(it).toLowerCase()); });
       var dg = after.garjas != null && before.garjas != null ? Math.round((after.garjas - before.garjas) * 10) / 10 : null;
@@ -486,7 +502,7 @@
     if (!S.catatan.length) return h + '<div class="card stack"><p class="small muted" style="margin:0">Belum ada data. Catat latihan pertamamu untuk melihat grafik.</p><button class="btn" data-go="catat">Catat latihan</button></div>';
     var ws = weekSummary();
     h += '<div class="card stack"><div class="row"><h2>Ringkasan minggu ini</h2><span class="tiny muted">' + esc(ws.range) + '</span></div><div class="small" style="white-space:pre-line">' + esc(ws.body) + '</div>';
-    h += '<div class="btns"><button class="btn small" id="copy-week">Salin ringkasan</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(ws.full) + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a></div></div>';
+    h += '<div class="btns"><button class="btn small" id="copy-week">Salin ringkasan</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(ws.full) + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a><button class="btn ghost small" data-go="bagikan">' + icon('share', 18) + 'Bagikan gambar</button></div></div>';
     var opts = [['garjas', 'Nilai garjas']].concat(ITEMS.map(function (it) { return [it.key, itemLabel(it)]; }));
     h += '<div class="chips" role="group" aria-label="Pilih item">' + opts.map(function (o) { return '<button type="button" class="chip" data-pick="' + o[0] + '" aria-pressed="' + (progressPick === o[0]) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>';
     var series = progressPick === 'garjas' ? garjasSeries() : itemSeries(progressPick);
@@ -550,6 +566,176 @@
     return h + '<p class="tiny muted" style="margin:0">Program ini panduan latihan umum, bukan pengganti arahan pelatih atau tenaga medis.</p>';
   }
 
+  /* ---------------- Peringkat ---------------- */
+  var LB = { data: null, at: 0, loading: false, err: '' }, lbMode = 'nilai', lbMatra = 'Semua';
+  function muatLB(force) {
+    if (!S.email) return Promise.resolve(null);
+    if (LB.loading) return LB.janji;
+    if (!force && LB.data && Date.now() - LB.at < 120000) return Promise.resolve(LB.data);
+    LB.loading = true; LB.err = '';
+    LB.janji = api('leaderboard', { email: S.email }).then(function (j) {
+      LB.data = j; LB.at = Date.now(); LB.loading = false;
+      if (tab === 'peringkat' || tab === 'beranda') softRender();
+      return j;
+    }, function (e) {
+      LB.loading = false; LB.err = pesanError(e);
+      if (tab === 'peringkat') softRender();
+      throw e;
+    });
+    return LB.janji;
+  }
+  function softRender() { var a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return; if (!busy) render(); }
+  function viewPeringkat() {
+    var h = '<div class="top"><div><h1>Peringkat casis</h1><div class="sub">Dari catatan mandiri casis Pelatih Garjas' + (LB.data ? ', diperbarui ' + esc(String(LB.data.waktu).slice(11)) : '') + '</div></div></div>';
+    if (!LB.data) {
+      h += '<div class="card" style="text-align:center">' + (LB.err ? '<p class="small warn" style="margin:0 0 10px">' + esc(LB.err) + '</p><button class="btn ghost small" id="lb-refresh">Coba lagi</button>' : '<span class="spin" aria-hidden="true"></span> Memuat peringkat…') + '</div>';
+      return h;
+    }
+    var d = LB.data, sy = d.saya || {};
+    h += '<div class="hero"><div class="soft">Posisimu</div>';
+    if (sy.tampil === false) h += '<div class="display" style="font-weight:700;font-size:20px">Kamu sedang disembunyikan dari peringkat.</div><button class="btn small" data-go="profil" style="background:var(--hero-ink);color:var(--hero);align-self:flex-start">Tampilkan di Profil</button>';
+    else {
+      h += '<div class="grid2"><div><div class="big" style="font-size:44px">' + (sy.rankNilai ? '#' + sy.rankNilai : '–') + '</div><div class="soft">nilai garjas, dari ' + d.totalNilai + ' casis</div></div><div><div class="big" style="font-size:44px">' + (sy.rankRajin ? '#' + sy.rankRajin : '–') + '</div><div class="soft">paling rajin minggu ini</div></div></div>';
+      if (!sy.lengkap) h += '<div class="soft" style="color:var(--hero-ink)">Catat kelima item tes (lari, ' + esc(itemLabel(ITEMS[1]).toLowerCase()) + ', sit-up, push-up, shuttle run) untuk masuk peringkat nilai.</div>';
+      if (S.catatan.length) h += '<button type="button" class="btn small" data-go="bagikan" style="background:var(--hero-ink);color:var(--hero);align-self:flex-start">' + icon('share', 18) + 'Bagikan posisiku</button>';
+    }
+    h += '</div>';
+    h += '<div class="chips" role="group" aria-label="Jenis peringkat">' + [['nilai', 'Nilai garjas'], ['rajin', 'Paling rajin minggu ini']].map(function (o) { return '<button type="button" class="chip" data-lbmode="' + o[0] + '" aria-pressed="' + (lbMode === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>';
+    h += '<div class="chips" role="group" aria-label="Filter matra">' + ['Semua', 'AD', 'AL', 'AU'].map(function (m) { return '<button type="button" class="chip" data-lbmatra="' + m + '" aria-pressed="' + (lbMatra === m) + '">' + (m === 'Semua' ? 'Semua matra' : 'TNI ' + m) + '</button>'; }).join('') + '</div>';
+    var list = (lbMode === 'nilai' ? d.nilai : d.rajin).filter(function (x) { return lbMatra === 'Semua' || x.matra === lbMatra; }).slice(0, 50);
+    h += '<div class="card" style="padding:8px">';
+    if (!list.length) h += '<p class="small muted" style="margin:8px">Belum ada casis di peringkat ini. Jadilah yang pertama!</p>';
+    list.forEach(function (x, i) {
+      var val = lbMode === 'nilai' ? fmtNum(x.nilai, 1) : x.hari + ' hari';
+      h += '<div class="lb-row' + (x.saya ? ' saya' : '') + '"><span class="lb-rank">' + (i + 1) + '</span><div><div style="font-weight:700">' + esc(x.nama) + (x.saya ? ' <span class="tag">Kamu</span>' : '') + '</div><div class="tiny muted">' + esc(x.jalur + ' TNI ' + x.matra + ', ' + x.gender) + '</div></div><span class="lb-val">' + esc(val) + '</span></div>';
+    });
+    h += '</div><div class="btns"><button class="btn ghost small" id="lb-refresh"' + (LB.loading ? ' disabled' : '') + '>' + (LB.loading ? 'Memuat…' : 'Perbarui') + '</button></div>';
+    h += '<p class="tiny muted" style="margin:0">Peringkat nilai hanya menghitung casis yang sudah mencatat kelima item. Yang tampil hanya nama depan, inisial, matra, dan jalur.</p>';
+    return h;
+  }
+
+  /* ---------------- Bagikan hasil ---------------- */
+  var share = { url: null, blob: null, loading: false, err: '' };
+  function namaPendek(n) { var b = String(n || '').trim().split(/\s+/); return (b[0] || 'Casis').slice(0, 15) + (b[1] ? ' ' + b[1].charAt(0).toUpperCase() + '.' : ''); }
+  function linkBagikan() { var base = location.origin + location.pathname.replace(/index\.html$/, ''); return S.profil && S.profil.kodeBagikan ? base + '?h=' + S.profil.kodeBagikan : base; }
+  function teksBagikan() {
+    var g = currentScores().garjas, sy = LB.data && LB.data.saya;
+    return 'Prediksi nilai garjas saya ' + fmtNum(g, 1) + ' dari 100' + (sy && sy.rankNilai ? ', peringkat #' + sy.rankNilai + ' dari ' + LB.data.totalNilai + ' casis' : '') + '. Seberapa siap fisikmu untuk tes TNI? Ukur gratis di Pelatih Garjas JadiPrajurit:';
+  }
+  function rr(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
+  function gambarHasil() {
+    var W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H;
+    var x = c.getContext('2d'), p = S.profil, cur = currentScores(), tg = target(), g = cur.garjas || 0, sy = LB.data && LB.data.saya;
+    var AR = "'Archivo', 'Arial Narrow', Arial, sans-serif", PS = "'Public Sans', 'Segoe UI', Arial, sans-serif";
+    var INK = '#F3F2EC', SOFT = '#D9E3D4';
+    x.fillStyle = '#1F3A2A'; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#24432F'; x.beginPath(); x.moveTo(0, 1240); x.lineTo(W, 1040); x.lineTo(W, H); x.lineTo(0, H); x.fill();
+    x.fillStyle = INK; rr(x, 90, 240, 72, 72, 16); x.fill();
+    x.strokeStyle = '#1F3A2A'; x.lineWidth = 8; x.lineCap = 'round'; x.lineJoin = 'round';
+    [264, 290].forEach(function (yy) { x.beginPath(); x.moveTo(108, yy - 6); x.lineTo(126, yy + 6); x.lineTo(144, yy - 6); x.stroke(); });
+    x.fillStyle = SOFT; x.font = '600 38px ' + PS; x.textBaseline = 'alphabetic'; x.fillText('Pelatih Garjas · JadiPrajurit', 186, 290);
+    x.fillStyle = INK; x.font = '800 80px ' + AR; x.fillText(namaPendek(p.name), 90, 460);
+    x.fillStyle = SOFT; x.font = '500 40px ' + PS; x.fillText(p.jalur + ' TNI ' + p.matra, 90, 522);
+    x.font = '600 40px ' + PS; x.fillText('Prediksi nilai garjas', 90, 650);
+    x.fillStyle = INK; x.font = '800 290px ' + AR; var gs = fmtNum(g, 1); x.fillText(gs, 76, 920);
+    var w = x.measureText(gs).width; x.fillStyle = SOFT; x.font = '600 50px ' + PS; x.fillText('/ 100', 76 + w + 22, 920);
+    x.fillStyle = 'rgba(243,242,236,0.22)'; rr(x, 90, 995, 900, 26, 13); x.fill();
+    x.fillStyle = INK; rr(x, 90, 995, Math.max(26, 900 * Math.min(100, g) / 100), 26, 13); x.fill();
+    x.fillStyle = '#F2B27A'; rr(x, 90 + 900 * Math.min(100, tg) / 100 - 3, 981, 6, 54, 3); x.fill();
+    x.fillStyle = SOFT; x.font = '500 34px ' + PS; x.textAlign = 'right'; x.fillText('Target ' + fmtNum(tg, 0), 990, 1080); x.textAlign = 'left';
+    var y = 1165;
+    ITEMS.forEach(function (it) {
+      var l = cur.latest[it.key], sc = cur.scores[it.key];
+      x.fillStyle = INK; x.font = '600 38px ' + PS; x.fillText(itemLabel(it), 90, y);
+      x.textAlign = 'right'; x.font = (l ? '700 ' : '500 ') + '38px ' + PS; x.fillStyle = l ? INK : SOFT;
+      x.fillText(l ? fmtNum(l.raw, 1) + ' ' + it.unit + '  ·  nilai ' + fmtNum(sc, 0) : 'belum dicatat', 990, y); x.textAlign = 'left';
+      x.fillStyle = 'rgba(243,242,236,0.18)'; rr(x, 90, y + 20, 900, 14, 7); x.fill();
+      if (sc != null) { x.fillStyle = sc >= tg ? '#8CCB86' : '#F2A766'; rr(x, 90, y + 20, Math.max(14, 900 * sc / 100), 14, 7); x.fill(); }
+      y += 80;
+    });
+    var pills = [];
+    if (sy && sy.rankNilai) pills.push('Peringkat #' + sy.rankNilai + ' dari ' + LB.data.totalNilai);
+    var st = streak(); if (st > 1) pills.push(st + ' hari latihan beruntun');
+    var px = 90; x.font = '700 34px ' + PS;
+    pills.forEach(function (t) { var tw = x.measureText(t).width + 56; x.fillStyle = INK; rr(x, px, 1556, tw, 66, 33); x.fill(); x.fillStyle = '#8A3B0A'; x.fillText(t, px + 28, 1600); px += tw + 18; });
+    x.fillStyle = INK; rr(x, 90, 1644, 900, 76, 20); x.fill();
+    x.fillStyle = '#1F3A2A'; x.font = '700 34px ' + PS; x.fillText('Ukur kesiapan fisikmu, gratis', 120, 1693);
+    x.textAlign = 'right'; x.font = '600 28px ' + PS; x.fillText(location.host || 'Pelatih Garjas', 960, 1693); x.textAlign = 'left';
+    return c;
+  }
+  function siapkanBagikan() {
+    if (!S.catatan.length) return;
+    share.loading = true; share.err = '';
+    var fonts = document.fonts && document.fonts.load ? Promise.all(['800 100px Archivo', '600 40px "Public Sans"', '700 40px "Public Sans"', '500 40px "Public Sans"'].map(function (f) { return document.fonts.load(f); })) : Promise.resolve();
+    var batas = new Promise(function (r) { setTimeout(r, 2500); });
+    Promise.race([Promise.all([fonts, muatLB(false).catch(function () { })]), batas]).then(function () {
+      var c = gambarHasil();
+      return new Promise(function (res, rej) { if (c.toBlob) c.toBlob(function (b) { b ? res(b) : rej(); }, 'image/png'); else rej(); });
+    }).then(function (blob) {
+      if (share.url) URL.revokeObjectURL(share.url);
+      share.blob = blob; share.url = URL.createObjectURL(blob); share.loading = false;
+      if (tab === 'bagikan') render();
+    }, function () { share.loading = false; share.err = 'Gambar belum bisa dibuat di browser ini. Kamu tetap bisa membagikan link.'; if (tab === 'bagikan') render(); });
+  }
+  function viewBagikan() {
+    var h = '<div class="top"><div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn ghost small" data-go="beranda" aria-label="Kembali" style="padding:0 10px">' + icon('back', 20) + '</button><div><h1>Bagikan hasil</h1><div class="sub">Ajak teman casis ukur kesiapan fisiknya</div></div></div></div>';
+    if (!S.catatan.length) return h + '<div class="card stack"><p class="small muted" style="margin:0">Catat latihan dulu supaya ada hasil yang bisa dibagikan.</p><button class="btn" data-go="catat">Catat latihan</button></div>';
+    h += '<div class="card stack" style="align-items:center">';
+    if (share.loading || (!share.url && !share.err)) h += '<div class="share-prev" style="display:flex;align-items:center;justify-content:center"><span class="spin" aria-hidden="true"></span></div>';
+    else if (share.url) h += '<img class="share-prev" src="' + share.url + '" alt="Gambar hasil latihan: prediksi nilai garjas ' + fmtNum(currentScores().garjas, 1) + '">';
+    if (share.err) h += '<p class="small warn" style="margin:0">' + esc(share.err) + '</p>';
+    h += '<div class="btns" style="width:100%">';
+    if (navigator.share) h += '<button class="btn" id="share-native"' + (share.loading ? ' disabled' : '') + '>' + icon('share', 18) + 'Bagikan</button>';
+    if (share.url) h += '<a class="btn ghost" href="' + share.url + '" download="hasil-garjas-jadiprajurit.png">Unduh gambar</a>';
+    h += '</div><p class="tiny muted" style="margin:0;text-align:center">Ukuran pas untuk Instagram Story dan Status WhatsApp.</p></div>';
+    var link = linkBagikan();
+    h += '<div class="card stack"><h2>Link hasilmu</h2><div class="small" style="word-break:break-all;background:var(--line2);border-radius:10px;padding:10px 12px">' + esc(link) + '</div>';
+    h += '<div class="btns"><button class="btn ghost small" id="share-copy">Salin link</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(teksBagikan() + ' ' + link) + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a></div>';
+    h += '<p class="tiny muted" style="margin:0">Yang terlihat orang lain hanya nama depan, inisial, matra, jalur, dan nilaimu. Email dan nomor WhatsApp tidak pernah ditampilkan.</p></div>';
+    return h;
+  }
+  function bagikanNative() {
+    var link = linkBagikan(), data = { title: 'Hasil latihan Pelatih Garjas', text: teksBagikan(), url: link };
+    try {
+      if (share.blob && window.File) {
+        var f = new File([share.blob], 'hasil-garjas-jadiprajurit.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [f] })) { data.files = [f]; data.text = teksBagikan() + ' ' + link; delete data.url; }
+      }
+    } catch (e) { }
+    navigator.share(data).catch(function () { });
+  }
+
+  /* ---------------- Halaman hasil publik (?h=KODE) ---------------- */
+  var landing = { kode: null, data: null, err: '', aktif: false };
+  function viewLanding() {
+    var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '</div></div>';
+    if (!landing.data) return h + '<div class="card" style="text-align:center">' + (landing.err ? '<p class="small muted" style="margin:0 0 10px">' + esc(landing.err) + '</p>' : '<span class="spin" aria-hidden="true"></span> Memuat hasil…') + '</div>' + ctaLanding();
+    var d = landing.data, tg = d.target || 70;
+    h += '<div><h1 style="margin:0;font-family:Archivo,sans-serif;font-weight:800;font-size:26px;line-height:1.2">' + esc(d.nama) + ' sedang bersiap untuk tes jasmani TNI</h1><div class="sub">' + esc(d.jalur + ' TNI ' + d.matra) + '</div></div>';
+    h += '<section class="hero"><div class="soft">Prediksi nilai garjas</div><div style="display:flex;align-items:baseline;gap:8px"><span class="big">' + fmtNum(d.nilai, 1) + '</span><span class="soft">/ 100</span></div>';
+    h += '<div class="hbar" aria-hidden="true"><i style="width:' + Math.max(2, Math.min(100, d.nilai || 0)) + '%"></i><b style="left:calc(' + Math.min(100, tg) + '% - 1px)"></b></div>';
+    if (d.rankNilai) h += '<div class="soft" style="color:var(--hero-ink)">Peringkat <b>#' + d.rankNilai + '</b> dari ' + d.totalNilai + ' casis Pelatih Garjas</div>';
+    h += '</section><div class="card">';
+    d.items.forEach(function (x) {
+      var it = ITEMS.filter(function (i) { return i.key === x.key; })[0], ok = x.nilai != null && x.nilai >= tg;
+      h += '<div class="item"><div class="row"><span style="font-weight:600">' + esc(N.label(it, d.gender)) + '</span><span class="small muted">' + (x.raw != null ? fmtNum(x.raw, 1) + ' ' + it.unit + ' · <b class="' + (ok ? 'good' : 'warn') + '">Nilai ' + fmtNum(x.nilai, 0) + '</b>' : 'belum dicatat') + '</span></div><div class="bar" aria-hidden="true"><i style="width:' + (x.nilai || 0) + '%;background:' + (ok ? 'var(--good-bar)' : 'var(--warn-bar)') + '"></i><b style="left:' + Math.min(100, tg) + '%"></b></div></div>';
+    });
+    h += '</div>';
+    return h + ctaLanding();
+  }
+  function ctaLanding() {
+    var h = '<div class="card stack"><h2>Seberapa siap fisikmu?</h2><p class="small muted" style="margin:0">Catat latihanmu, lihat prediksi nilai garjas, dapatkan program latihan mingguan, dan bersaing di peringkat casis. Gratis.</p>';
+    if (S.email) h += '<button class="btn" id="landing-app">Buka aplikasiku</button>';
+    else h += '<button class="btn" id="landing-daftar">Ukur nilaimu sekarang</button><p class="small muted" style="text-align:center;margin:0">Sudah punya akun? <button type="button" class="linkbtn" style="color:var(--good)" id="landing-masuk">Masuk</button></p>';
+    return h + '</div>';
+  }
+  function tutupLanding(view) {
+    landing.aktif = false;
+    try { history.replaceState(null, '', location.pathname); } catch (e) { }
+    if (view) authView = view;
+    tab = 'beranda'; render(); window.scrollTo(0, 0);
+  }
+
   /* ---------------- Profil ---------------- */
   function viewProfil() {
     var p = S.profil;
@@ -574,7 +760,7 @@
     if (r.err.length) { setAuthMsg('Lengkapi: ' + r.err.join(', ') + '.'); return; }
     busy = true; render();
     api('simpanProfil', { email: S.email, profil: r.data }).then(function (j) {
-      busy = false; S.profil = j.profil; simpanSesi(); render(); toast('Data diri tersimpan.');
+      busy = false; S.profil = j.profil; simpanSesi(); LB.at = 0; render(); toast('Data diri tersimpan.');
     }, function (e) { busy = false; render(); setAuthMsg(pesanError(e)); });
   }
 
@@ -617,12 +803,14 @@
   function render() {
     if (tab === 'catat') readDraftFromForm();
     var nav = document.querySelector('nav.tabs'), v, gate = !S.email;
-    if (gate) v = authView === 'login' ? viewLogin() : viewDaftar();
+    if (landing.aktif) { gate = true; v = viewLanding(); }
+    else if (gate) v = authView === 'login' ? viewLogin() : viewDaftar();
     else if (perluSimpanAdmin()) { gate = true; v = viewSimpanAdmin(); }
-    else v = tab === 'catat' ? viewCatat() : tab === 'progres' ? viewProgres() : tab === 'program' ? viewProgram() : tab === 'profil' ? viewProfil() : viewBeranda();
+    else v = tab === 'catat' ? viewCatat() : tab === 'progres' ? viewProgres() : tab === 'peringkat' ? viewPeringkat() : tab === 'bagikan' ? viewBagikan() : tab === 'program' ? viewProgram() : tab === 'profil' ? viewProfil() : viewBeranda();
     $('#app').innerHTML = '<div class="stack">' + v + '</div>';
     nav.style.display = gate ? 'none' : '';
     if (!gate) renderNav();
+    if (!gate && tab === 'beranda' && S.catatan.length && !LB.data && !LB.loading && !LB.err) muatLB(false).catch(function () { });
     if (perluSimpanAdmin() && pendingAutoOpen) { pendingAutoOpen = false; setTimeout(bukaKartuAdmin, 400); }
   }
   document.addEventListener('click', function (e) {
@@ -630,6 +818,8 @@
     if (b.dataset.tab) { go(b.dataset.tab); return; }
     if (b.dataset.go) { go(b.dataset.go); return; }
     if (b.dataset.pick) { progressPick = b.dataset.pick; render(); return; }
+    if (b.dataset.lbmode) { lbMode = b.dataset.lbmode; render(); return; }
+    if (b.dataset.lbmatra) { lbMatra = b.dataset.lbmatra; render(); return; }
     if (b.dataset.check) { checkin = b.dataset.check === 'reset' ? null : b.dataset.check; render(); return; }
     if (b.dataset.del) { hapusLog(b.dataset.del); return; }
     if (b.dataset.timer) { if (timer.mode !== b.dataset.timer) { stopTick(); lockScreen(false); timer = { mode: b.dataset.timer, running: false, start: 0, elapsed: 0, done: false, iv: null }; } render(); return; }
@@ -644,6 +834,14 @@
       case 'save-profile': if (!busy) saveProfile(); break;
       case 'logout': logout(); break;
       case 'confirm-admin': if (!busy) konfirmasiAdmin(); break;
+      case 'lb-refresh': muatLB(true).catch(function () { }); render(); break;
+      case 'share-native': bagikanNative(); break;
+      case 'share-copy':
+        (function (t) { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { toast('Link disalin.'); }, function () { toast('Salin manual link di atas.'); }); else toast('Salin manual link di atas.'); })(linkBagikan());
+        break;
+      case 'landing-daftar': if (landing.kode) lsSet(LS_REF, landing.kode); tutupLanding('daftar'); break;
+      case 'landing-masuk': tutupLanding('login'); break;
+      case 'landing-app': tutupLanding(null); break;
       case 'save-admin': kartu.dibuka = true; break;
       case 'copy-week': copyText(weekSummary().full); break;
     }
@@ -656,6 +854,12 @@
 
   /* ---------------- Mulai ---------------- */
   if (/[?&]cek=1/.test(location.search)) { renderCek(); return; }
+  var mh = location.search.match(/[?&]h=([A-Za-z0-9]{6,12})/);
+  if (mh) {
+    landing.kode = mh[1].toUpperCase(); landing.aktif = true;
+    api('hasil', { k: landing.kode }, 'GET').then(function (j) { landing.data = j; if (landing.aktif) render(); },
+      function (e) { landing.err = e && e.kode === 'tidak_ditemukan' ? 'Hasil ini tidak ditemukan.' : 'Hasil belum bisa dimuat.'; if (landing.aktif) render(); });
+  }
   var sesi = lsGet(LS_SESI);
   if (sesi && sesi.email && sesi.profil) { S = { email: sesi.email, profil: sesi.profil, catatan: Array.isArray(sesi.catatan) ? sesi.catatan : [] }; }
   else authView = 'daftar';

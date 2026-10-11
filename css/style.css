@@ -1,6 +1,6 @@
 /* Pelatih Garjas – JadiPrajurit */
 :root{
-  --versi:"2026.10.11-4";
+  --versi:"2026.10.11-5";
   --bg:#F3F2EC; --card:#FFFFFF; --ink:#17211B; --muted:#4B5550; --line:#E1DFD6; --line2:#ECEAE2;
   --hero:#1F3A2A; --hero-ink:#F3F2EC; --hero-soft:#D9E3D4;
   --btn:#17211B; --btn-ink:#FFFFFF; --field:#FFFFFF; --field-line:#C9C6BA;
@@ -90,7 +90,7 @@ textarea.in{height:auto;min-height:92px;padding:11px 12px;resize:vertical;line-h
 .hist:first-child{border-top:0}
 .linkbtn{background:none;border:0;color:var(--warn);font-weight:600;font-size:13px;cursor:pointer;padding:6px 0;min-height:36px}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(8px + env(safe-area-inset-bottom,0px))}
-nav.tabs .in-nav{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+nav.tabs .in-nav{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
 nav.tabs button{min-height:52px;background:none;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer}
 nav.tabs button[aria-current="page"]{color:var(--ink);font-weight:800}
 nav.tabs button[aria-current="page"] svg{stroke-width:2.4}
@@ -111,3 +111,10 @@ a.inline{color:var(--good);font-weight:600}
 @keyframes putar{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){.spin{animation-duration:2.4s}}
 
+
+.lb-row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 8px;border-top:1px solid var(--line2);border-radius:10px}
+.lb-row:first-child{border-top:0}
+.lb-row.saya{background:var(--good-soft);border-top-color:transparent}
+.lb-rank{font-family:'Archivo',sans-serif;font-weight:800;font-size:17px;text-align:center;font-variant-numeric:tabular-nums}
+.lb-val{font-family:'Archivo',sans-serif;font-weight:800;font-size:18px;font-variant-numeric:tabular-nums;text-align:right}
+.share-prev{display:block;width:100%;max-width:300px;margin:0 auto;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.18);aspect-ratio:9/16;background:var(--line2)}

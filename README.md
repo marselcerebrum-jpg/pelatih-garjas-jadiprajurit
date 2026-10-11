@@ -2,7 +2,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai garjas, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-4** · Versi backend: **2026.10.11-4**
+Versi web: **2026.10.11-5** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -12,6 +12,9 @@ Versi web: **2026.10.11-4** · Versi backend: **2026.10.11-4**
 - **Beranda:** hitung mundur ke hari tes, prediksi nilai garjas, streak, latihan hari ini, dan status per item.
 - **Progres:** grafik per item, perkiraan kapan target tercapai, rapor simulasi, riwayat, dan ringkasan mingguan yang bisa disalin atau dikirim ke WhatsApp.
 - **Program mingguan** disusun otomatis dari nilai terbaru: fokus ke item terlemah, ada hari istirahat, tidak ada dua hari berat berturut-turut, dan volume dikurangi 7 hari sebelum tes.
+- **Peringkat casis:** peringkat nilai garjas (khusus yang sudah mencatat kelima item) dan peringkat paling rajin minggu ini, bisa difilter per matra. Yang tampil hanya nama depan dan inisial; casis bisa menyembunyikan diri di Profil.
+- **Bagikan hasil:** gambar ukuran Instagram Story/Status WhatsApp berisi nilai, rincian item, dan peringkat, plus link hasil publik `?h=KODE`. Orang yang membuka link melihat hasil temannya dan tombol daftar; pendaftar lewat link tercatat di kolom **Diajak Oleh**.
+- **Push-up dihitung kamera (prototipe, `pushup.html`):** pengenalan pose berjalan di HP (MediaPipe), hanya menghitung push-up yang sah (siku menekuk ≤100° lalu lurus ≥150°, badan lurus, posisi mendatar). Video tidak direkam atau dikirim. Hasil belum tersimpan ke catatan.
 - **Halaman `?cek=1`** untuk memeriksa versi file dan koneksi ke Google Sheets.
 
 Aplikasi ini tidak memakai AI. Semua nilai dihitung dari tab **Standar Nilai** di spreadsheet.
@@ -20,11 +23,13 @@ Aplikasi ini tidak memakai AI. Semua nilai dihitung dari tab **Standar Nilai** d
 
 ```
 index.html
+pushup.html         ← prototipe push-up dihitung kamera
 css/style.css
 js/config.js        ← URL Apps Script (diisi sekali, tidak ikut paket update)
 js/nilai.js         ← rumus nilai dan penyusun program latihan
 js/app.js           ← tampilan dan alur aplikasi
 assets/favicon.svg
+assets/og.png       ← gambar pratinjau saat link dibagikan
 apps-script/Code.gs ← backend, ditempel di Apps Script spreadsheet
 ```
 

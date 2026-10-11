@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F3A2A">
+<title>Push-up Kamera (Prototipe) – Pelatih Garjas</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#F3F2EC;--card:#FFFFFF;--ink:#17211B;--muted:#4B5550;--line:#E1DFD6;--line2:#ECEAE2;
+  --hero:#1F3A2A;--hero-ink:#F3F2EC;--hero-soft:#D9E3D4;--btn:#17211B;--btn-ink:#FFFFFF;
+  --field:#FFFFFF;--field-line:#C9C6BA;--good:#2F5D34;--good-soft:#E3EDDF;--warn:#9A4207;--warn-soft:#FBEFE3;--warn-ink:#5C2A06;--focus:#2563EB;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#101511;--card:#19201B;--ink:#ECEFEA;--muted:#A8B1AB;--line:#2B342E;--line2:#232B25;
+  --hero:#24402E;--hero-ink:#F1F4EF;--hero-soft:#C3D2BD;--btn:#ECEFEA;--btn-ink:#101511;
+  --field:#141A16;--field-line:#3A453E;--good:#8CCB86;--good-soft:#1E3322;--warn:#F2A766;--warn-soft:#3A2414;--warn-ink:#F6CFA8;--focus:#7AA7FF;color-scheme:dark;
+}}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Public Sans','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding:18px}
+h1{margin:0;font-family:'Archivo',sans-serif;font-weight:800;font-size:24px;line-height:1.15}
+h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
+.sub{font-size:13px;color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;background:var(--warn-soft);color:var(--warn-ink)}
+.btn{min-height:48px;border-radius:13px;border:0;background:var(--btn);color:var(--btn-ink);font:700 15px 'Public Sans',sans-serif;padding:0 18px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--field-line)}
+.btn[disabled]{opacity:.55;cursor:default}
+.btns{display:flex;gap:8px;flex-wrap:wrap}.btns .btn{flex:1 1 auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{min-height:42px;padding:0 14px;border-radius:999px;border:1px solid var(--field-line);background:var(--card);color:var(--ink);font:600 14px 'Public Sans',sans-serif;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--hero);border-color:var(--hero);color:var(--hero-ink)}
+.f{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}
+.note{border-radius:14px;padding:11px 13px;font-size:14px;line-height:1.45;background:var(--line2)}
+.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.muted{color:var(--muted)}.small{font-size:13px}.tiny{font-size:12px}
+/* Layar kamera */
+#cam{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:10}
+#cam.on{display:flex}
+#stage{position:relative;flex:1 1 auto;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#view{max-width:100%;max-height:100%;display:block}
+.hud{position:absolute;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 0;pointer-events:none}
+.hud .box{background:rgba(16,21,17,.72);color:#F3F2EC;border-radius:16px;padding:8px 14px;min-width:96px}
+.hud .lbl{font-size:12px;color:#C3D2BD}
+.hud .num{font-family:'Archivo',sans-serif;font-weight:800;font-size:40px;line-height:1;font-variant-numeric:tabular-nums}
+.hud .big{font-size:64px}
+#status{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;max-width:calc(100% - 28px);background:rgba(16,21,17,.8);color:#F3F2EC;border-radius:999px;padding:10px 18px;font-weight:700;font-size:15px;text-align:center}
+#status.ok{background:#2F5D34}#status.bad{background:#9A4207}
+#countdown{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-family:'Archivo',sans-serif;font-weight:800;font-size:160px;color:#F3F2EC;text-shadow:0 4px 30px rgba(0,0,0,.6);pointer-events:none}
+#debug{position:absolute;left:12px;bottom:70px;background:rgba(16,21,17,.78);color:#F3F2EC;border-radius:12px;padding:8px 10px;font-size:12px;line-height:1.5;display:none;font-variant-numeric:tabular-nums}
+.bar{display:flex;gap:8px;padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px));background:#101511}
+.bar .btn{flex:1 1 0;background:#F3F2EC;color:#101511}
+.bar .btn.ghost{background:transparent;color:#F3F2EC;border-color:#3A453E}
+.res-num{font-family:'Archivo',sans-serif;font-weight:800;font-size:84px;line-height:1;font-variant-numeric:tabular-nums}
+.hero{background:var(--hero);color:var(--hero-ink);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.hero .soft{color:var(--hero-soft);font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;background:var(--hero-ink);color:var(--hero);align-self:flex-start}
+input[type=range]{width:100%}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:putar .8s linear infinite;vertical-align:-3px}
+@keyframes putar{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="stack" id="setup">
+    <div class="stack" style="gap:6px">
+      <div class="sub"><a href="./" style="color:inherit">Pelatih Garjas</a> · Prototipe</div>
+      <h1>Push-up dihitung kamera</h1>
+      <div class="sub">Kamera mengenali gerakanmu dan hanya menghitung push-up yang sah. Video tidak direkam dan tidak dikirim ke mana pun.</div>
+    </div>
+
+    <div class="card stack">
+      <h2>Cara menaruh HP</h2>
+      <svg viewBox="0 0 320 120" width="100%" role="img" aria-label="Ilustrasi: HP diletakkan berdiri di lantai, sekitar 2 meter di samping badan, sehingga seluruh badan terlihat dari samping" style="display:block;max-width:420px">
+        <line x1="10" y1="104" x2="310" y2="104" stroke="currentColor" stroke-width="2" opacity=".35"/>
+        <circle cx="70" cy="66" r="9" fill="none" stroke="currentColor" stroke-width="3"/>
+        <path d="M80 72 L180 86 M100 75 L102 104 M180 86 L230 100" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <rect x="270" y="58" width="22" height="42" rx="4" fill="none" stroke="currentColor" stroke-width="3"/>
+        <circle cx="281" cy="64" r="2" fill="currentColor"/>
+        <path d="M262 80 L120 80" stroke="currentColor" stroke-width="2" stroke-dasharray="5 5" opacity=".6"/>
+        <text x="185" y="40" font-size="12" fill="currentColor" text-anchor="middle" font-family="Public Sans, sans-serif">± 2 meter, dari samping</text>
+      </svg>
+      <ol class="steps">
+        <li>Sandarkan HP berdiri di lantai, <b>di samping</b> badanmu, sejajar dengan pinggang.</li>
+        <li>Pastikan <b>kepala sampai kaki</b> terlihat di layar dan cahaya cukup terang.</li>
+        <li>Ambil posisi push-up. Hitungan mundur mulai otomatis begitu posisimu terbaca.</li>
+      </ol>
+    </div>
+
+    <div class="card stack">
+      <div class="f">Jenis push-up
+        <div class="chips" role="group" aria-label="Jenis push-up">
+          <button type="button" class="chip" data-gender="Pria" aria-pressed="true">Pria (tumpuan kaki)</button>
+          <button type="button" class="chip" data-gender="Wanita" aria-pressed="false">Wanita (tumpuan lutut)</button>
+        </div>
+      </div>
+      <div class="f">Mode
+        <div class="chips" role="group" aria-label="Mode">
+          <button type="button" class="chip" data-mode="tes" aria-pressed="true">Tes 1 menit</button>
+          <button type="button" class="chip" data-mode="bebas" aria-pressed="false">Latihan bebas</button>
+        </div>
+      </div>
+      <div class="f">Kamera
+        <div class="chips" role="group" aria-label="Kamera">
+          <button type="button" class="chip" data-facing="user" aria-pressed="true">Depan</button>
+          <button type="button" class="chip" data-facing="environment" aria-pressed="false">Belakang</button>
+        </div>
+      </div>
+      <label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;font-weight:600"><input type="checkbox" id="voice" checked style="width:22px;height:22px"> Sebutkan hitungan dengan suara</label>
+      <label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;font-weight:600"><input type="checkbox" id="dbg" style="width:22px;height:22px"> Tampilkan detail sudut (untuk penguji)</label>
+      <div id="setup-msg" class="small" style="color:var(--warn)" role="alert"></div>
+      <button class="btn" id="start">Mulai kamera</button>
+    </div>
+
+    <details class="card">
+      <summary style="cursor:pointer;font-weight:700;min-height:36px;display:flex;align-items:center">Aturan hitungan</summary>
+      <ul class="steps" style="margin-top:8px">
+        <li>Dihitung bila siku menekuk sampai sudut <b id="r-down">100</b>° atau lebih kecil, lalu lurus kembali sampai <b id="r-up">150</b>° atau lebih.</li>
+        <li>Badan harus lurus (bahu, pinggul, dan <span id="r-tumpu">pergelangan kaki</span> segaris) dan dalam posisi telungkup mendatar.</li>
+        <li>Turun kurang dalam, pinggul turun atau terangkat, atau berdiri, tidak dihitung.</li>
+      </ul>
+      <div id="tune" style="display:none;margin-top:10px" class="stack">
+        <label class="f">Batas siku turun: <span id="v-down">100</span>°<input type="range" id="t-down" min="70" max="120" value="100"></label>
+        <label class="f">Batas siku lurus: <span id="v-up">150</span>°<input type="range" id="t-up" min="135" max="175" value="150"></label>
+        <label class="f">Toleransi badan lurus: <span id="v-body">155</span>°<input type="range" id="t-body" min="130" max="175" value="155"></label>
+      </div>
+    </details>
+  </div>
+
+  <div class="stack" id="result" style="display:none"></div>
+</div>
+
+<div id="cam" aria-live="polite">
+  <div id="stage">
+    <canvas id="view" aria-label="Tampilan kamera dengan kerangka tubuh"></canvas>
+    <div class="hud">
+      <div class="box"><div class="lbl" id="time-lbl">Waktu</div><div class="num" id="time">1:00</div></div>
+      <div class="box" style="text-align:right"><div class="lbl">Push-up sah</div><div class="num big" id="count">0</div><div class="lbl" id="bad-count">tidak sah: 0</div></div>
+    </div>
+    <div id="countdown"></div>
+    <div id="status">Menyiapkan…</div>
+    <div id="debug"></div>
+  </div>
+  <div class="bar">
+    <button class="btn ghost" id="cancel">Batal</button>
+    <button class="btn" id="finish">Selesai</button>
+  </div>
+</div>
+<video id="video" playsinline muted style="display:none"></video>
+
+<script type="module">
+const MP_VER = '0.10.21';
+const MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+const TABEL = { Pria: [[15, 0], [16, 1], [34, 55], [43, 100]], Wanita: [[5, 0], [6, 3], [19, 55], [28, 100]] };
+
+const $ = (s) => document.querySelector(s);
+const opt = { gender: 'Pria', mode: 'tes', facing: 'user' };
+const cfg = { down: 100, up: 150, body: 155, horiz: 40 };
+let landmarker = null, stream = null, raf = 0, wakeLock = null, audio = null;
+let S = null; // sesi
+
+/* ---------- Pengaturan awal ---------- */
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  for (const k of ['gender', 'mode', 'facing']) {
+    if (b.dataset[k]) {
+      opt[k] = b.dataset[k];
+      document.querySelectorAll('[data-' + k + ']').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      if (k === 'gender') { $('#r-tumpu').textContent = opt.gender === 'Wanita' ? 'lutut' : 'pergelangan kaki'; cfg.body = opt.gender === 'Wanita' ? 150 : 155; $('#t-body').value = cfg.body; $('#v-body').textContent = cfg.body; }
+    }
+  }
+});
+$('#dbg').addEventListener('change', () => { $('#tune').style.display = $('#dbg').checked ? 'flex' : 'none'; });
+for (const [id, key] of [['t-down', 'down'], ['t-up', 'up'], ['t-body', 'body']]) {
+  $('#' + id).addEventListener('input', (e) => {
+    cfg[key] = Number(e.target.value);
+    $('#v-' + key).textContent = cfg[key];
+    if (key === 'down') $('#r-down').textContent = cfg.down;
+    if (key === 'up') $('#r-up').textContent = cfg.up;
+  });
+}
+
+$('#start').addEventListener('click', mulai);
+$('#cancel').addEventListener('click', () => berhenti(false));
+$('#finish').addEventListener('click', () => berhenti(true));
+
+async function siapkanModel() {
+  if (landmarker) return landmarker;
+  const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/vision_bundle.mjs');
+  const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/wasm');
+  const buat = (delegate) => vision.PoseLandmarker.createFromOptions(files, {
+    baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numPoses: 1,
+    minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5
+  });
+  try { landmarker = await buat('GPU'); } catch (e) { landmarker = await buat('CPU'); }
+  return landmarker;
+}
+
+async function mulai() {
+  const msg = $('#setup-msg'), btn = $('#start');
+  msg.textContent = '';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'Browser ini tidak bisa membuka kamera. Coba Chrome atau Safari versi terbaru.'; return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Menyiapkan pengenal gerakan…';
+  try {
+    try { const AC = window.AudioContext || window.webkitAudioContext; if (AC && !audio) audio = new AC(); if (audio && audio.state === 'suspended') await audio.resume(); } catch (e) { }
+    if ('speechSynthesis' in window && $('#voice').checked) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }
+    const [lm, st] = await Promise.all([
+      siapkanModel(),
+      navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: opt.facing, width: { ideal: 640 }, height: { ideal: 480 } } })
+    ]);
+    stream = st;
+    const v = $('#video'); v.srcObject = stream; await v.play();
+    try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { }
+    S = {
+      phase: 'atas', count: 0, bad: 0, alasan: {}, repOk: true, repReason: '', repStart: 0, dipMin: 999,
+      ang: null, siapSejak: 0, mulai: 0, selesai: false, countdown: false, lastT: -1, fpsT: performance.now(), fpsN: 0, fps: 0, lastFeedback: ''
+    };
+    $('#count').textContent = '0'; $('#bad-count').textContent = 'tidak sah: 0';
+    $('#time').textContent = opt.mode === 'tes' ? '1:00' : '0:00';
+    $('#time-lbl').textContent = opt.mode === 'tes' ? 'Sisa waktu' : 'Durasi';
+    $('#debug').style.display = $('#dbg').checked ? 'block' : 'none';
+    $('#cam').classList.add('on');
+    setStatus('Ambil posisi push-up, seluruh badan terlihat dari samping', '');
+    loop();
+  } catch (e) {
+    const n = e && e.name;
+    msg.textContent = n === 'NotAllowedError' ? 'Izin kamera ditolak. Buka pengaturan situs di browser, izinkan kamera, lalu coba lagi.'
+      : n === 'NotFoundError' ? 'Kamera tidak ditemukan di perangkat ini.'
+      : 'Pengenal gerakan gagal dimuat. Periksa koneksi internet lalu coba lagi.';
+    tutupKamera();
+  } finally {
+    btn.disabled = false; btn.textContent = 'Mulai kamera';
+  }
+}
+
+/* ---------- Geometri ---------- */
+function sudut(a, b, c) {
+  const abx = a.x - b.x, aby = a.y - b.y, cbx = c.x - b.x, cby = c.y - b.y;
+  const d = (abx * cbx + aby * cby) / (Math.hypot(abx, aby) * Math.hypot(cbx, cby) || 1);
+  return Math.acos(Math.max(-1, Math.min(1, d))) * 180 / Math.PI;
+}
+function kemiringan(a, b) { return Math.abs(Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI) % 180; }
+function pilihSisi(lm) {
+  const kiri = [11, 13, 15, 23, 25, 27], kanan = [12, 14, 16, 24, 26, 28];
+  const vis = (ids) => ids.reduce((s, i) => s + (lm[i].visibility ?? 0), 0) / ids.length;
+  const vk = vis(kiri), vn = vis(kanan);
+  const ids = vk >= vn ? [11, 13, 15, 23, 25, 27] : [12, 14, 16, 24, 26, 28];
+  return { ids, vis: Math.max(vk, vn) };
+}
+
+/* ---------- Loop utama ---------- */
+function loop() {
+  raf = requestAnimationFrame(loop);
+  const v = $('#video'), cv = $('#view');
+  if (v.readyState < 2) return;
+  if (cv.width !== v.videoWidth) { cv.width = v.videoWidth; cv.height = v.videoHeight; }
+  const ctx = cv.getContext('2d'), W = cv.width, H = cv.height, mirror = opt.facing === 'user';
+  ctx.save(); if (mirror) { ctx.translate(W, 0); ctx.scale(-1, 1); } ctx.drawImage(v, 0, 0, W, H); ctx.restore();
+  if (v.currentTime === S.lastT) return;
+  S.lastT = v.currentTime;
+  const now = performance.now();
+  S.fpsN++; if (now - S.fpsT > 1000) { S.fps = S.fpsN; S.fpsN = 0; S.fpsT = now; }
+  let res;
+  try { res = landmarker.detectForVideo(v, now); } catch (e) { return; }
+  const lmN = res && res.landmarks && res.landmarks[0];
+  tickWaktu(now);
+  if (!lmN) { if (!S.selesai) setStatus('Badan belum terlihat. Mundurkan HP sampai kepala dan kaki masuk layar', 'bad'); S.siapSejak = 0; return; }
+  const lm = lmN.map((p) => ({ x: (mirror ? 1 - p.x : p.x) * W, y: p.y * H, visibility: p.visibility }));
+  const { ids, vis } = pilihSisi(lmN);
+  const [sh, el, wr, hip, knee, ank] = ids.map((i) => lm[i]);
+  const tumpu = opt.gender === 'Wanita' ? knee : ank;
+  gambarKerangka(ctx, [sh, el, wr], [sh, hip, tumpu]);
+  if (vis < 0.5) { if (!S.selesai) setStatus('Badan kurang jelas. Pastikan cahaya terang dan HP di samping badan', 'bad'); S.siapSejak = 0; return; }
+
+  const siku = sudut(sh, el, wr);
+  const badan = sudut(sh, hip, tumpu);
+  const miring = Math.min(kemiringan(sh, tumpu), 180 - kemiringan(sh, tumpu));
+  S.ang = S.ang == null ? siku : S.ang * 0.5 + siku * 0.5;
+  const mendatar = miring <= cfg.horiz;
+  const lurus = badan >= cfg.body;
+  const posisiOk = mendatar && lurus;
+  const alasanPosisi = !mendatar ? 'Bukan posisi push-up' : !lurus ? (hip.y < Math.min(sh.y, tumpu.y) - 4 ? 'Pinggul terlalu tinggi' : 'Pinggul turun') : '';
+  if ($('#dbg').checked) $('#debug').innerHTML = 'siku ' + Math.round(S.ang) + '° · badan ' + Math.round(badan) + '° · miring ' + Math.round(miring) + '°<br>visibilitas ' + vis.toFixed(2) + ' · ' + S.fps + ' fps · fase ' + S.phase;
+
+  // Sebelum mulai: tunggu posisi siap 1 detik, lalu hitung mundur
+  if (!S.mulai) {
+    if (S.countdown) return;
+    if (posisiOk && S.ang > cfg.up) {
+      if (!S.siapSejak) S.siapSejak = now;
+      setStatus('Tahan posisi…', 'ok');
+      if (now - S.siapSejak > 1000) hitungMundur();
+    } else {
+      S.siapSejak = 0;
+      setStatus(!posisiOk ? (alasanPosisi === 'Bukan posisi push-up' ? 'Ambil posisi push-up dengan badan menghadap lantai' : 'Luruskan badan: ' + alasanPosisi.toLowerCase()) : 'Luruskan lengan untuk mulai', 'bad');
+    }
+    return;
+  }
+  if (S.selesai) return;
+
+  // Mesin hitung
+  if (S.phase === 'atas') {
+    if (S.ang < cfg.down) {
+      S.phase = 'bawah'; S.repStart = now; S.repOk = posisiOk; S.repReason = posisiOk ? '' : alasanPosisi; S.dipMin = 999;
+    } else {
+      S.dipMin = Math.min(S.dipMin, S.ang);
+      if (S.ang > cfg.up && S.dipMin < cfg.up - 15) { catatTidakSah('Kurang turun'); S.dipMin = 999; }
+      else if (S.ang > cfg.up) S.dipMin = 999;
+      if (!posisiOk) feedback(alasanPosisi, 'bad');
+    }
+  } else {
+    if (!posisiOk && S.repOk) { S.repOk = false; S.repReason = alasanPosisi; }
+    if (S.ang > cfg.up) {
+      S.phase = 'atas'; S.dipMin = 999;
+      if (now - S.repStart < 250) return;
+      if (S.repOk) catatSah(); else catatTidakSah(S.repReason || 'Posisi salah');
+    }
+  }
+}
+
+function gambarKerangka(ctx, lengan, badan) {
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const garis = (pts, warna) => { ctx.strokeStyle = warna; ctx.lineWidth = 6; ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); pts.forEach((p) => { ctx.fillStyle = '#F3F2EC'; ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill(); }); };
+  garis(badan, '#8CCB86'); garis(lengan, '#F2B27A');
+}
+
+/* ---------- Waktu & hitungan ---------- */
+function hitungMundur() {
+  S.countdown = true; const el = $('#countdown'); let n = 3;
+  el.style.display = 'flex'; el.textContent = n; bunyi(660, 0.15); setStatus('Bersiap', 'ok');
+  const t = setInterval(() => {
+    n--;
+    if (n > 0) { el.textContent = n; bunyi(660, 0.15); }
+    else { clearInterval(t); el.style.display = 'none'; bunyi(990, 0.35); S.countdown = false; S.mulai = performance.now(); S.phase = 'atas'; S.dipMin = 999; setStatus('Mulai!', 'ok'); }
+  }, 1000);
+}
+function tickWaktu(now) {
+  if (!S.mulai || S.selesai) return;
+  const det = (now - S.mulai) / 1000;
+  if (opt.mode === 'tes') {
+    const sisa = Math.max(0, 60 - det);
+    $('#time').textContent = '0:' + String(Math.ceil(sisa)).padStart(2, '0');
+    if (sisa <= 0) { bunyi(880, 0.25); setTimeout(() => bunyi(880, 0.25), 300); setTimeout(() => bunyi(880, 0.5), 600); try { navigator.vibrate && navigator.vibrate([300, 120, 300]); } catch (e) { } berhenti(true); }
+  } else {
+    const d = Math.floor(det); $('#time').textContent = Math.floor(d / 60) + ':' + String(d % 60).padStart(2, '0');
+  }
+}
+function catatSah() {
+  S.count++; $('#count').textContent = S.count; bunyi(1046, 0.08);
+  feedback('Bagus! ' + S.count, 'ok');
+  if ($('#voice').checked && 'speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(String(S.count)); u.lang = 'id-ID'; u.rate = 1.3; speechSynthesis.speak(u); }
+}
+function catatTidakSah(alasan) {
+  S.bad++; S.alasan[alasan] = (S.alasan[alasan] || 0) + 1;
+  $('#bad-count').textContent = 'tidak sah: ' + S.bad; bunyi(220, 0.12);
+  feedback(alasan + ', tidak dihitung', 'bad');
+}
+let fbTimer = 0;
+function feedback(t, k) { if (S.lastFeedback === t) return; S.lastFeedback = t; setStatus(t, k); clearTimeout(fbTimer); fbTimer = setTimeout(() => { S.lastFeedback = ''; }, 1200); }
+function setStatus(t, k) { const el = $('#status'); if (el.textContent !== t) el.textContent = t; el.className = k || ''; }
+function bunyi(f, d) {
+  try { if (!audio) return; const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime; o.frequency.value = f; o.connect(g); g.connect(audio.destination); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.start(t); o.stop(t + d + 0.02); } catch (e) { }
+}
+
+/* ---------- Selesai ---------- */
+function tutupKamera() {
+  cancelAnimationFrame(raf);
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) { }
+  $('#cam').classList.remove('on');
+}
+function berhenti(tampilkan) {
+  if (!S || S.selesai) { tutupKamera(); return; }
+  S.selesai = true;
+  const durasi = S.mulai ? Math.min(opt.mode === 'tes' ? 60 : 1e9, Math.round((performance.now() - S.mulai) / 1000)) : 0;
+  tutupKamera();
+  if (tampilkan && S.mulai) tampilHasil(durasi);
+}
+function nilai(n) {
+  const t = TABEL[opt.gender];
+  if (n <= t[0][0]) return t[0][1];
+  if (n >= t[t.length - 1][0]) return t[t.length - 1][1];
+  for (let i = 1; i < t.length; i++) if (n <= t[i][0]) { const a = t[i - 1], b = t[i]; return Math.round(a[1] + (b[1] - a[1]) * (n - a[0]) / (b[0] - a[0])); }
+  return 0;
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function tampilHasil(durasi) {
+  const tes = opt.mode === 'tes' && durasi >= 58;
+  const alasan = Object.entries(S.alasan).sort((a, b) => b[1] - a[1]);
+  let h = '<div class="stack" style="gap:6px"><div class="sub">Pelatih Garjas · Prototipe</div><h1>Hasil push-up</h1></div>';
+  h += '<div class="hero"><span class="pill">Dihitung kamera</span><div class="soft">Push-up sah' + (tes ? ' dalam 1 menit' : ' dalam ' + Math.floor(durasi / 60) + ':' + String(durasi % 60).padStart(2, '0')) + '</div>';
+  h += '<div class="res-num">' + S.count + '</div>';
+  if (tes) h += '<div class="soft" style="color:var(--hero-ink)">Perkiraan nilai push-up: <b>' + nilai(S.count) + '</b> (tabel ' + opt.gender.toLowerCase() + ', usia 18–25)</div>';
+  else if (opt.mode === 'tes') h += '<div class="soft">Sesi dihentikan sebelum 1 menit, jadi nilai tes tidak dihitung.</div>';
+  h += '</div>';
+  h += '<div class="card stack"><h2>Tidak dihitung: ' + S.bad + '</h2>';
+  h += alasan.length ? '<ul class="steps">' + alasan.map(([a, n]) => '<li>' + esc(a) + ': ' + n + ' kali</li>').join('') + '</ul>' : '<p class="small muted" style="margin:0">Semua gerakan sah. Mantap!</p>';
+  if (alasan.length) h += '<p class="small muted" style="margin:0">' + tips(alasan[0][0]) + '</p>';
+  h += '</div>';
+  h += '<div class="note small">Ini versi prototipe. Hasilnya belum tersimpan ke catatan Pelatih Garjas. Kalau hitungan kamera terasa meleset dari hitunganmu, beri tahu tim beserta posisi HP dan kondisi cahayanya.</div>';
+  h += '<div class="btns"><button class="btn" id="again">Ulangi</button><a class="btn ghost" href="./">Ke Pelatih Garjas</a></div>';
+  $('#setup').style.display = 'none';
+  const r = $('#result'); r.innerHTML = h; r.style.display = 'flex';
+  $('#again').addEventListener('click', () => { r.style.display = 'none'; $('#setup').style.display = 'flex'; window.scrollTo(0, 0); });
+  window.scrollTo(0, 0);
+}
+function tips(a) {
+  if (a === 'Kurang turun') return 'Tips: turunkan dada sampai kira-kira sekepal tangan dari lantai sebelum mendorong naik.';
+  if (a === 'Pinggul turun') return 'Tips: kencangkan perut dan bokong supaya badan tetap lurus seperti papan.';
+  if (a === 'Pinggul terlalu tinggi') return 'Tips: turunkan pinggul sampai segaris dengan bahu dan kaki.';
+  return 'Tips: pastikan HP tepat di samping badan dan seluruh badan terlihat.';
+}
+</script>
+</body>
+</html>
