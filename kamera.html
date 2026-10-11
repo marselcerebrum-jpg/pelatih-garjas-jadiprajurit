@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1F3A2A">
-<title>Tes Kamera (Prototipe) – Pelatih Garjas</title>
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<title>Tes Kamera (Prototipe) – JadiPrajurit</title>
+<link rel="icon" type="image/png" sizes="64x64" href="assets/icon-64.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap">
@@ -66,6 +67,10 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
 input[type=range]{width:100%}
 .spin{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:putar .8s linear infinite;vertical-align:-3px}
 @keyframes putar{to{transform:rotate(360deg)}}
+.brandx{display:flex;align-items:center;gap:10px;font-weight:700;font-size:13px;color:var(--muted)}
+.brandx img{height:30px;width:auto;display:block}.brandx span{border-left:1px solid var(--line);padding-left:10px}
+.brandx .logo-gelap{display:none}
+@media (prefers-color-scheme: dark){.brandx .logo-terang{display:none}.brandx .logo-gelap{display:block}}
 </style>
 
 </head>
@@ -73,7 +78,7 @@ input[type=range]{width:100%}
 <div class="wrap" id="app">
   <div class="stack" id="setup">
     <div class="stack" style="gap:6px">
-      <div class="sub"><a href="./" style="color:inherit">Pelatih Garjas</a> · Prototipe</div>
+      <a class="brandx" href="./" aria-label="Kembali ke SIGAP JadiPrajurit"><img class="logo-terang" src="assets/logo-jadiprajurit.png" alt="JadiPrajurit"><img class="logo-gelap" src="assets/logo-jadiprajurit-terang.png" alt="JadiPrajurit"><span>SIGAP · Prototipe</span></a>
       <h1>Tes kamera</h1>
       <div class="sub">Kamera mengenali gerakanmu dan hanya menghitung gerakan yang sah. Video tidak direkam dan tidak dikirim ke mana pun.</div>
     </div>
@@ -280,7 +285,7 @@ function renderSetup() {
   $('#tune').innerHTML = Object.keys(ps).map((k) => '<label class="f">' + ps[k].label + ': <span id="v-' + k + '">' + par[k] + '</span>' + ps[k].unit + '<input type="range" data-param="' + k + '" min="' + ps[k].min + '" max="' + ps[k].max + '" value="' + par[k] + '"></label>').join('');
   $('#tune').style.display = $('#dbg').checked ? 'flex' : 'none';
   $('#start').textContent = 'Mulai ' + labelItem().toLowerCase();
-  document.title = 'Tes Kamera ' + labelItem() + ' (Prototipe) – Pelatih Garjas';
+  document.title = 'Tes Kamera ' + labelItem() + ' (Prototipe) – SIGAP JadiPrajurit';
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
@@ -469,7 +474,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 function tampilHasil(durasi) {
   const it = ITEM[opt.item], nama = labelItem(), tes = opt.mode === 'tes' && durasi >= 58;
   const alasan = Object.entries(S.alasan).sort((a, b) => b[1] - a[1]);
-  let h = '<div class="stack" style="gap:6px"><div class="sub">Pelatih Garjas · Prototipe</div><h1>Hasil ' + esc(nama.toLowerCase()) + '</h1></div>';
+  let h = '<div class="stack" style="gap:6px"><div class="sub">JadiPrajurit · SIGAP · Prototipe</div><h1>Hasil ' + esc(nama.toLowerCase()) + '</h1></div>';
   h += '<div class="hero"><span class="pill">Dihitung kamera' + (it.ujiCoba ? ' · uji coba' : '') + '</span><div class="soft">' + esc(nama) + ' sah' + (tes ? ' dalam 1 menit' : ' dalam ' + Math.floor(durasi / 60) + ':' + String(durasi % 60).padStart(2, '0')) + '</div>';
   h += '<div class="res-num">' + S.count + '</div>';
   if (tes) h += '<div class="soft" style="color:var(--hero-ink)">Perkiraan nilai ' + esc(nama.toLowerCase()) + ': <b>' + nilai(S.count) + '</b> (tabel ' + opt.gender.toLowerCase() + ', usia 18–25)</div>';
@@ -477,8 +482,8 @@ function tampilHasil(durasi) {
   h += '</div><div class="card stack"><h2>Tidak dihitung: ' + S.bad + '</h2>';
   h += alasan.length ? '<ul class="steps">' + alasan.map(([a, n]) => '<li>' + esc(a) + ': ' + n + ' kali</li>').join('') + '</ul>' : '<p class="small muted" style="margin:0">Semua gerakan sah. Mantap!</p>';
   if (alasan.length) h += '<p class="small muted" style="margin:0">Tips: ' + esc(it.tips[alasan[0][0]] || 'pastikan posisi HP sesuai panduan dan seluruh badan terlihat.') + '</p>';
-  h += '</div><div class="note small">Ini versi prototipe. Hasilnya belum tersimpan ke catatan Pelatih Garjas. Kalau hitungan kamera meleset dari hitunganmu, beri tahu tim beserta posisi HP dan kondisi cahayanya.</div>';
-  h += '<div class="btns"><button class="btn" id="again">Ulangi</button><a class="btn ghost" href="./">Ke Pelatih Garjas</a></div>';
+  h += '</div><div class="note small">Ini versi prototipe. Hasilnya belum tersimpan ke catatan SIGAP. Kalau hitungan kamera meleset dari hitunganmu, beri tahu tim beserta posisi HP dan kondisi cahayanya.</div>';
+  h += '<div class="btns"><button class="btn" id="again">Ulangi</button><a class="btn ghost" href="./">Kembali ke SIGAP</a></div>';
   $('#setup').style.display = 'none';
   const r = $('#result'); r.innerHTML = h; r.style.display = 'flex';
   $('#again').addEventListener('click', () => { r.style.display = 'none'; $('#setup').style.display = 'flex'; window.scrollTo(0, 0); });

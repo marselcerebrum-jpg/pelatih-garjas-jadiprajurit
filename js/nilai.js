@@ -1,10 +1,10 @@
 /*
- * Penilaian garjas dan penyusun program latihan berbasis aturan.
+ * Penilaian nilai jasmani dan penyusun program latihan berbasis aturan.
  * Tidak memakai AI: semua angka dihitung dari tabel standar di tab "Standar Nilai".
  */
 (function () {
   'use strict';
-  (window.VERSI_FILE = window.VERSI_FILE || {})['nilai.js'] = '2026.10.11-7';
+  (window.VERSI_FILE = window.VERSI_FILE || {})['nilai.js'] = '2026.10.11-11';
 
   var ITEMS = [
     { key: 'lari', label: 'Lari 12 menit', unit: 'm', min: 0, max: 6000, step: '10', ph: '2400' },
@@ -14,7 +14,7 @@
     { key: 'shuttle', label: 'Shuttle run', unit: 'detik', min: 8, max: 60, step: '0.1', ph: '17.6' }
   ];
 
-  /* Cadangan bila backend belum bisa dihubungi: tabel Garjas TNI golongan umur 18–25 tahun,
+  /* Cadangan bila backend belum bisa dihubungi: tabel nilai jasmani TNI golongan umur 18–25 tahun,
      sama dengan isi awal tab "Standar Nilai" (lihat README). */
   var STANDAR_CONTOH = {
     Pria: {
@@ -75,7 +75,7 @@
     return null;
   }
 
-  /* Nilai garjas = (nilai lari + rata-rata item B) / 2 */
+  /* Nilai jasmani = (nilai lari + rata-rata item B) / 2 */
   function garjasFrom(scores) {
     var a = scores.lari;
     var bs = ['pullup', 'situp', 'pushup', 'shuttle'].map(function (k) { return scores[k]; })

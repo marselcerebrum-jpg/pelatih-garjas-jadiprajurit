@@ -1,5 +1,5 @@
 /**
- * Backend Pelatih Garjas – JadiPrajurit
+ * Backend SIGAP (Simulasi dan Indeks Gerak Akurat Peserta) – JadiPrajurit
  * Google Apps Script yang terpasang di spreadsheet data casis.
  *
  * Cara pasang:
@@ -25,11 +25,11 @@ var TAB = {
 
 var KOLOM_PESERTA = ['ID Peserta', 'Tanggal Daftar', 'Nama Lengkap', 'Email JadiPrajurit', 'No. WhatsApp',
   'Jenis Kelamin', 'Usia', 'Tinggi (cm)', 'Berat (kg)', 'Domisili', 'Matra', 'Jalur', 'Tanggal Tes',
-  'Target Nilai', 'Persetujuan Data', 'Terakhir Diperbarui', 'Jumlah Catatan', 'Nilai Garjas Terbaru',
+  'Target Nilai', 'Persetujuan Data', 'Terakhir Diperbarui', 'Jumlah Catatan', 'Nilai Jasmani Terbaru',
   'Terakhir Latihan', 'Disimpan Admin', 'Simpan Nomor Admin', 'Tampil di Peringkat', 'Kode Bagikan', 'Diajak Oleh'];
 var KOLOM_CATATAN = ['ID Catatan', 'Waktu Input', 'Email JadiPrajurit', 'Nama Lengkap', 'Tanggal',
   'Lari 12 Menit (m)', 'Pull-up/Chinning (kali)', 'Sit-up (kali)', 'Push-up (kali)', 'Shuttle Run (detik)',
-  'Simulasi', 'Nilai Garjas', 'Catatan'];
+  'Simulasi', 'Nilai Jasmani', 'Catatan'];
 var KOLOM_STANDAR = ['Jenis Kelamin', 'Item', 'Hasil', 'Nilai'];
 var KOLOM_PENGATURAN = ['Kunci', 'Nilai', 'Keterangan'];
 var KOLOM_KONTAK = ['Waktu', 'ID Peserta', 'Nama Kontak', 'No. WhatsApp', 'Email JadiPrajurit', 'Status'];
@@ -47,7 +47,7 @@ var MATRA = ['AD', 'AL', 'AU'];
 var JALUR = ['Tamtama', 'Bintara', 'Akmil', 'PA PK'];
 var GENDER = ['Pria', 'Wanita'];
 
-/* Isi awal tab Standar Nilai: tabel Garjas TNI golongan umur 18–25 tahun (hasil : nilai).
+/* Isi awal tab Standar Nilai: tabel nilai jasmani TNI golongan umur 18–25 tahun (hasil : nilai).
    Nilai 100 mengikuti naskah Pusdikjas TNI AD. Cocokkan dengan juknis seleksi terbaru. */
 var STANDAR_CONTOH = {
   Pria: {
@@ -68,7 +68,7 @@ var STANDAR_CONTOH = {
 
 var PENGATURAN_AWAL = [
   ['standar_resmi', 'TIDAK', 'Ubah menjadi YA setelah tabel di tab Standar Nilai dicocokkan dengan juknis seleksi resmi. Selama TIDAK, aplikasi menampilkan keterangan bahwa tabel belum ditandai resmi.'],
-  ['sumber_standar', 'Tabel Garjas TNI golongan umur 18–25 tahun (nilai 100 sesuai naskah Pusdikjas TNI AD); perlu dicocokkan dengan juknis seleksi terbaru', 'Sumber tabel nilai, misalnya nama juknis dan tahunnya. Tampil di aplikasi.'],
+  ['sumber_standar', 'Tabel nilai jasmani TNI golongan umur 18–25 tahun (nilai 100 sesuai naskah Pusdikjas TNI AD); perlu dicocokkan dengan juknis seleksi terbaru', 'Sumber tabel nilai, misalnya nama juknis dan tahunnya. Tampil di aplikasi.'],
   ['target_default', '70', 'Target nilai awal untuk casis yang baru mendaftar.'],
   ['link_grup_wa', '', 'Link grup WhatsApp casis. Kosongkan bila tidak ada.'],
   ['wa_admin', '', 'Nomor WhatsApp admin untuk bantuan, format 628xxxxxxxxxx. Kosongkan bila tidak ada.'],
@@ -453,13 +453,13 @@ function hasilPublik_(kode) {
 /*
  * Setiap casis yang mendaftar otomatis masuk tab "Simpan Kontak" berstatus
  * "Belum disimpan admin". Admin menyimpannya secara bulk lewat Markaz, lalu
- * menandainya lewat menu Pelatih Garjas → Tandai semua sudah disimpan.
+ * menandainya lewat menu SIGAP → Tandai semua sudah disimpan.
  * Casis wajib menyimpan nomor admin sebelum masuk aplikasi; konfirmasinya
  * tercatat di kolom "Simpan Nomor Admin" pada tab Peserta.
  */
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Pelatih Garjas')
+  SpreadsheetApp.getUi().createMenu('SIGAP')
     .addItem('Tandai semua sudah disimpan', 'tandaiKontakTersimpan')
     .addItem('Ekspor kontak belum disimpan ke vCard', 'eksporKontakVcf')
     .addToUi();

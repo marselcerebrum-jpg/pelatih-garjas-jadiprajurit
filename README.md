@@ -1,19 +1,21 @@
-# Pelatih Garjas – JadiPrajurit
+# SIGAP – JadiPrajurit
 
-Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai garjas, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
+**SIGAP: Simulasi dan Indeks Gerak Akurat Peserta.** *Sigap fisik, siap tes.*
 
-Versi web: **2026.10.11-7** · Versi backend: **2026.10.11-5**
+Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
+
+Versi web: **2026.10.11-11** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
 - **Daftar dan masuk.** Daftar sekali dengan nama lengkap, email terdaftar di aplikasi JadiPrajurit, nomor WhatsApp, dan data fisik. Setelah itu cukup masuk dengan email.
 - **Catat latihan** lewat form, dengan nilai yang langsung terlihat saat mengetik.
 - **Alat bantu tes:** hitung mundur lari 12 menit (bunyi dan getar saat selesai), timer 1 menit, dan stopwatch shuttle run yang mengisi kolom otomatis.
-- **Beranda:** hitung mundur ke hari tes, prediksi nilai garjas, streak, latihan hari ini, dan status per item.
+- **Beranda:** hitung mundur ke hari tes, prediksi nilai jasmani, streak, latihan hari ini, dan status per item.
 - **Progres:** grafik per item, perkiraan kapan target tercapai, rapor simulasi, riwayat, dan ringkasan mingguan yang bisa disalin atau dikirim ke WhatsApp.
 - **Program mingguan** disusun otomatis dari nilai terbaru: fokus ke item terlemah, ada hari istirahat, tidak ada dua hari berat berturut-turut, dan volume dikurangi 7 hari sebelum tes.
-- **Peringkat casis:** peringkat nilai garjas (khusus yang sudah mencatat kelima item) dan peringkat paling rajin minggu ini, bisa difilter per matra. Yang tampil hanya nama depan dan inisial; casis bisa menyembunyikan diri di Profil.
-- **Bagikan hasil:** gambar ukuran Instagram Story/Status WhatsApp berisi nilai, rincian item, dan peringkat, plus link hasil publik `?h=KODE`. Orang yang membuka link melihat hasil temannya dan tombol daftar; pendaftar lewat link tercatat di kolom **Diajak Oleh**.
+- **Peringkat casis:** peringkat nilai jasmani (khusus yang sudah mencatat kelima item) dan peringkat paling rajin minggu ini, bisa difilter per matra. Yang tampil hanya nama depan dan inisial; casis bisa menyembunyikan diri di Profil.
+- **Bagikan hasil:** gambar ukuran Instagram Story/Status WhatsApp bergaya papan taktis dengan logo JadiPrajurit, berisi nilai, rincian item, peringkat, dan ajakan mengunduh aplikasi JadiPrajurit, plus link hasil publik `?h=KODE`. Orang yang membuka link melihat hasil temannya dan tombol daftar; pendaftar lewat link tercatat di kolom **Diajak Oleh**.
 - **Tes kamera (prototipe, `kamera.html`):** push-up, sit-up, dan pull-up/chinning dihitung kamera dengan pengenalan pose di HP (MediaPipe). Hanya gerakan sah yang dihitung; gerakan salah ditolak dengan alasannya. Pull-up/chinning berlabel uji coba. Video tidak direkam atau dikirim. Hasil belum tersimpan ke catatan. `pushup.html` lama otomatis dialihkan ke sini.
 - **Lari 12 menit dengan GPS (prototipe, `lari.html`):** jarak dari GPS, diperiksa sensor langkah dan batas kecepatan manusia. Layar wajib menyala; bila layar mati atau aplikasi ditinggalkan, tes dinyatakan tidak sah. Mulai manual lewat tombol "Mulai sekarang" setelah GPS siap, tombol Putaran untuk mencatat waktu per putaran (dan membandingkan jarak lintasan dengan GPS), serta Jeda khusus mode Lari bebas. Lokasi tidak disimpan atau dikirim. Hasil belum tersimpan ke catatan.
 - **Halaman `?cek=1`** untuk memeriksa versi file dan koneksi ke Google Sheets.
@@ -33,6 +35,8 @@ js/nilai.js         ← rumus nilai dan penyusun program latihan
 js/app.js           ← tampilan dan alur aplikasi
 assets/favicon.svg
 assets/og.png       ← gambar pratinjau saat link dibagikan
+assets/logo-*.png   ← logo JadiPrajurit (warna asli, versi latar gelap, versi stiker, ikon)
+assets/icon-*.png   ← ikon situs
 apps-script/Code.gs ← backend, ditempel di Apps Script spreadsheet
 ```
 
@@ -40,18 +44,18 @@ apps-script/Code.gs ← backend, ditempel di Apps Script spreadsheet
 
 | Tab | Isi |
 |---|---|
-| Peserta | Satu baris per casis: data diri, nomor WA, persetujuan data, jumlah catatan, nilai garjas terbaru, tanggal latihan terakhir |
+| Peserta | Satu baris per casis: data diri, nomor WA, persetujuan data, jumlah catatan, nilai jasmani terbaru, tanggal latihan terakhir |
 | Catatan Latihan | Satu baris per sesi latihan |
-| Standar Nilai | Tabel konversi hasil ke nilai, per jenis kelamin dan item. Berisi tabel Garjas TNI golongan umur 18–25 tahun; cocokkan dengan juknis seleksi terbaru. |
+| Standar Nilai | Tabel konversi hasil ke nilai, per jenis kelamin dan item. Berisi tabel nilai jasmani TNI golongan umur 18–25 tahun; cocokkan dengan juknis seleksi terbaru. |
 | Pengaturan | `standar_resmi`, `sumber_standar`, `target_default`, `link_grup_wa`, `wa_admin`, `nama_admin`, `label_kontak` |
 | Simpan Kontak | Daftar nomor casis untuk disimpan admin secara bulk lewat Markaz, beserta statusnya |
 
-Nilai garjas dihitung sebagai (nilai lari 12 menit + rata-rata nilai pull-up/chinning, sit-up, push-up, shuttle run) ÷ 2. Di antara dua baris tabel, nilai dihitung proporsional.
+Nilai jasmani dihitung sebagai (nilai lari 12 menit + rata-rata nilai pull-up/chinning, sit-up, push-up, shuttle run) ÷ 2. Di antara dua baris tabel, nilai dihitung proporsional.
 
 ## Cara pasang (pertama kali)
 
 ### 1. Apps Script
-1. Buka spreadsheet **Pelatih Garjas AI – Data Casis JadiPrajurit** → **Extensions → Apps Script**.
+1. Buka spreadsheet **SIGAP – Data Peserta JadiPrajurit** → **Extensions → Apps Script**.
 2. Hapus kode bawaan, tempel seluruh isi `apps-script/Code.gs`, lalu simpan.
 3. Pilih fungsi **setup** → **Run**. Izinkan akses saat diminta. Langkah ini membuat dan merapikan tab Peserta, Catatan Latihan, Standar Nilai (berisi tabel contoh), dan Pengaturan.
 4. **Deploy → New deployment** → ikon gerigi → **Web app**.
@@ -63,7 +67,7 @@ Nilai garjas dihitung sebagai (nilai lari 12 menit + rata-rata nilai pull-up/chi
 Buka `js/config.js`, tempel URL tadi di `APPS_SCRIPT_URL`, simpan.
 
 ### 3. GitHub
-Buat repo baru, misalnya `pelatih-garjas-jadiprajurit`, lalu upload **isi** folder ini (bukan foldernya) sehingga `index.html` berada langsung di halaman utama repo.
+Buat repo baru, misalnya `sigap-jadiprajurit`, lalu upload **isi** folder ini (bukan foldernya) sehingga `index.html` berada langsung di halaman utama repo.
 
 ### 4. Vercel
 **Add New → Project** → pilih repo → Framework Preset **Other** → Root Directory `./` → **Deploy**.
@@ -79,11 +83,31 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 
 ## Kontak WhatsApp
 
-**Nomor casis disimpan admin.** Persetujuan ini sudah menjadi bagian dari centang wajib saat daftar. Setiap pendaftar otomatis masuk tab **Simpan Kontak** dengan nama seperti `Rizky Aditya Casis JadiPrajurit` dan status `Belum disimpan admin`. Admin menyimpannya secara bulk lewat Markaz, lalu memilih menu **Pelatih Garjas → Tandai semua sudah disimpan**. Menu **Ekspor kontak belum disimpan ke vCard** tersedia sebagai cadangan.
+**Nomor casis disimpan admin.** Persetujuan ini sudah menjadi bagian dari centang wajib saat daftar. Setiap pendaftar otomatis masuk tab **Simpan Kontak** dengan nama seperti `Rizky Aditya Casis JadiPrajurit` dan status `Belum disimpan admin`. Admin menyimpannya secara bulk lewat Markaz, lalu memilih menu **SIGAP → Tandai semua sudah disimpan**. Menu **Ekspor kontak belum disimpan ke vCard** tersedia sebagai cadangan.
 
 **Casis wajib menyimpan nomor admin.** Setelah daftar, kartu kontak admin langsung terbuka otomatis di HP casis. Casis tidak bisa masuk ke aplikasi sebelum mencentang "Saya sudah menyimpan nomor admin". Konfirmasinya tercatat di kolom **Simpan Nomor Admin** pada tab Peserta. Casis yang mendaftar sebelum fitur ini juga akan diminta langkah yang sama saat membuka aplikasi.
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
+
+## Pengaman anti salah (poka-yoke)
+
+| Risiko | Pengaman |
+|---|---|
+| Salah ketik email saat daftar atau masuk (gmial.com, gmail.con) | Saran perbaikan otomatis; email yang disarankan langsung diisikan |
+| Data utama salah (email, WA, jenis kelamin, usia) | Ringkasan wajib dikonfirmasi sebelum daftar, karena jenis kelamin dan usia menentukan tabel nilai |
+| Jarak lari ditulis "2.400" atau "2,4" | Terbaca sebagai 2,4 lalu ditawarkan diubah menjadi 2.400 meter |
+| Repetisi berkoma (10.5) | Ditolak, harus bilangan bulat |
+| Angka di luar kemampuan manusia atau melonjak jauh dari catatan sebelumnya | Diminta konfirmasi sebelum disimpan |
+| Tanggal di masa depan / lebih dari 60 hari lalu | Ditolak / diminta konfirmasi |
+| Tombol simpan ditekan dua kali, atau koneksi putus lalu dikirim ulang | Tombol terkunci saat menyimpan; setiap catatan punya ID unik sehingga server tidak mencatat ganda |
+| Koneksi putus saat menyimpan | Catatan disimpan di HP dan dikirim otomatis saat koneksi kembali |
+| HP masih memakai file lama setelah update | Muncul banner "Muat ulang" |
+| Paket salah diupload, `config.js` kosong, backend belum di-deploy | Terdeteksi di halaman `?cek=1` |
+| Admin salah mengisi tab Standar Nilai (tidak berurutan, nilai di luar 0–100) | Ditolak server atau ditandai ❌ di `?cek=1`; item yang rusak memakai tabel cadangan |
+| Admin mengubah baris judul spreadsheet | Baris judul dilindungi dengan peringatan |
+| Isian berisi rumus (=, +, @) | Disimpan sebagai teks, bukan dijalankan sebagai rumus |
+| Dua orang menyimpan bersamaan | Penulisan ke spreadsheet dikunci bergantian |
+| Tes kamera dan lari GPS dicurangi | Gerakan tidak sah ditolak; layar mati, kecepatan tidak wajar, atau tanpa irama langkah membuat hasil tidak sah |
 
 ## Cara update
 

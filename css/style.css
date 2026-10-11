@@ -1,6 +1,6 @@
-/* Pelatih Garjas – JadiPrajurit */
+/* SIGAP – JadiPrajurit */
 :root{
-  --versi:"2026.10.11-7";
+  --versi:"2026.10.11-11";
   --bg:#F3F2EC; --card:#FFFFFF; --ink:#17211B; --muted:#4B5550; --line:#E1DFD6; --line2:#ECEAE2;
   --hero:#1F3A2A; --hero-ink:#F3F2EC; --hero-soft:#D9E3D4;
   --btn:#17211B; --btn-ink:#FFFFFF; --field:#FFFFFF; --field-line:#C9C6BA;
@@ -101,7 +101,11 @@ details summary{cursor:pointer;font-weight:700;min-height:40px;display:flex;alig
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (prefers-reduced-motion: no-preference){.hbar>i,.bar>i{transition:width .5s ease}}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:13px;color:var(--muted)}
-.brand img{width:28px;height:28px;border-radius:8px}
+.brand img{height:34px;width:auto;display:block}
+.brand span{border-left:1px solid var(--line);padding-left:10px}
+.brand .logo-gelap{display:none}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .brand .logo-terang{display:none}:root:not([data-theme="light"]) .brand .logo-gelap{display:block}}
+:root[data-theme="dark"] .brand .logo-terang{display:none}:root[data-theme="dark"] .brand .logo-gelap{display:block}
 .cek{display:flex;flex-direction:column}
 .cek .baris{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;padding:12px 0;border-top:1px solid var(--line)}
 .cek .baris:first-child{border-top:0}

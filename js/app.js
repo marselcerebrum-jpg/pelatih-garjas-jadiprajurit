@@ -1,15 +1,15 @@
 /*
- * Pelatih Garjas – JadiPrajurit
+ * SIGAP (Simulasi dan Indeks Gerak Akurat Peserta) – JadiPrajurit
  * Tampilan dan alur aplikasi. Data disimpan ke Google Sheets lewat Apps Script.
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-7';
+  var VERSI = '2026.10.11-11';
   var BACKEND_DIHARAPKAN = '2026.10.11-5';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
   var N = window.Nilai, ITEMS = N.ITEMS;
-  var LS_SESI = 'pelatih-garjas-sesi-v1', LS_CONFIG = 'pelatih-garjas-config-v1', LS_REF = 'pelatih-garjas-ref';
+  var LS_SESI = 'pelatih-garjas-sesi-v1', LS_CONFIG = 'pelatih-garjas-config-v1', LS_REF = 'pelatih-garjas-ref', LS_ANTRE = 'pelatih-garjas-antre-v1';
   var HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
   /* ---------------- Util ---------------- */
@@ -157,6 +157,90 @@
     render(); window.scrollTo(0, 0);
   }
 
+  /* ---------------- Anti salah (poka-yoke) ---------------- */
+  // Batas wajar manusia untuk tes 1 menit / 12 menit. Di luar ini tidak ditolak, tetapi diminta konfirmasi.
+  var WAJAR = {
+    lari: { Pria: [800, 4500], Wanita: [600, 3800] }, pullup: { Pria: [0, 45], Wanita: [0, 100] },
+    situp: { Pria: [0, 80], Wanita: [0, 80] }, pushup: { Pria: [0, 90], Wanita: [0, 80] }, shuttle: { Pria: [12, 35], Wanita: [12, 40] }
+  };
+  var DOMAIN_UMUM = ['gmail.com', 'yahoo.com', 'yahoo.co.id', 'hotmail.com', 'outlook.com', 'icloud.com', 'ymail.com', 'live.com', 'outlook.co.id'];
+  function jarakEdit(a, b) {
+    var m = a.length, n = b.length, d = [], i, j;
+    for (i = 0; i <= m; i++) { d[i] = [i]; }
+    for (j = 0; j <= n; j++) d[0][j] = j;
+    for (i = 1; i <= m; i++) for (j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[m][n];
+  }
+  // Menyarankan perbaikan salah ketik domain email yang umum (gmial.com, gmail.con, yaho.com, ...).
+  function saranEmail(e) {
+    var at = e.lastIndexOf('@'); if (at < 1) return null;
+    var dom = e.slice(at + 1); if (DOMAIN_UMUM.indexOf(dom) >= 0) return null;
+    var best = null, bd = 9;
+    DOMAIN_UMUM.forEach(function (d) { var k = jarakEdit(dom, d); if (k < bd) { bd = k; best = d; } });
+    return bd > 0 && bd <= 2 ? e.slice(0, at + 1) + best : null;
+  }
+  function catatanTerakhir(key) {
+    var ser = sortedLogs().filter(function (l) { return l.items[key] != null; });
+    return ser.length ? ser[ser.length - 1].items[key] : null;
+  }
+  // Pemeriksaan sebelum menyimpan catatan: mengoreksi salah satuan, menolak yang mustahil, dan meminta konfirmasi untuk yang janggal.
+  function periksaCatatan(items, tanggal) {
+    var tolak = [], tanya = [], g = gender();
+    if (items.lari != null && items.lari > 0 && items.lari < 100) {
+      var m = Math.round(items.lari * 1000);
+      if (confirm('Jarak lari tertulis ' + fmtNum(items.lari, 2) + '. Maksudmu ' + fmtNum(m, 0) + ' meter?\n\nTekan OK untuk memakai ' + fmtNum(m, 0) + ' m.')) { items.lari = m; var f = $('#f-lari'); if (f) f.value = m; draft.items.lari = m; }
+      else tolak.push('jarak lari harus diisi dalam meter, misalnya 2400');
+    }
+    ['pullup', 'situp', 'pushup'].forEach(function (k) {
+      if (items[k] != null && Math.round(items[k]) !== items[k]) tolak.push(itemLabel(ITEMS.filter(function (i) { return i.key === k; })[0]).toLowerCase() + ' harus bilangan bulat');
+    });
+    if (tolak.length) return { ok: false, pesan: 'Periksa lagi: ' + tolak.join('; ') + '.' };
+    ITEMS.forEach(function (it) {
+      var v = items[it.key]; if (v == null) return;
+      var w = WAJAR[it.key][g], lbl = itemLabel(it);
+      if (v < w[0] || v > w[1]) tanya.push(lbl + ' ' + fmtNum(v, 1) + ' ' + it.unit + ' di luar kisaran wajar (' + fmtNum(w[0], 0) + '–' + fmtNum(w[1], 0) + ')');
+      var prev = catatanTerakhir(it.key);
+      if (prev != null && prev > 0) {
+        var lonjak = it.key === 'shuttle' ? prev - v >= 3 : it.key === 'lari' ? v - prev >= 600 : (v - prev >= 8 && v >= prev * 1.6);
+        if (lonjak) tanya.push(lbl + ' naik jauh dari catatan terakhir (' + fmtNum(prev, 1) + ' → ' + fmtNum(v, 1) + ')');
+      }
+    });
+    if (tanggal < todayStr() && dayDiff(tanggal, todayStr()) > 60) tanya.push('tanggal latihan lebih dari 60 hari yang lalu');
+    if (tanya.length && !confirm('Pastikan tidak salah ketik:\n\n• ' + tanya.join('\n• ') + '\n\nTekan OK bila datanya sudah benar.')) return { ok: false, pesan: 'Penyimpanan dibatalkan. Periksa lagi angkanya.' };
+    return { ok: true };
+  }
+
+  /* ---------- Antrean simpan saat koneksi putus ---------- */
+  function antre() { var a = lsGet(LS_ANTRE); return Array.isArray(a) ? a : []; }
+  function setAntre(a) { lsSet(LS_ANTRE, a.length ? a : null); }
+  var mengirim = false;
+  function kirimAntre() {
+    if (mengirim || !S.email || !navigator.onLine && navigator.onLine !== undefined) return;
+    var a = antre().filter(function (x) { return x.email === S.email; });
+    if (!a.length) return;
+    mengirim = true;
+    var x = a[0];
+    api('tambahCatatan', { email: x.email, catatan: x.catatan, ringkasan: ringkasan() }).then(function () {
+      setAntre(antre().filter(function (y) { return y.catatan.id !== x.catatan.id; }));
+      S.catatan.forEach(function (l) { if (l.id === x.catatan.id) delete l.tertunda; }); simpanSesi(); LB.at = 0;
+      mengirim = false;
+      if (!antre().some(function (y) { return y.email === S.email; })) { toast('Catatan yang tertunda sudah terkirim.'); softRender(); }
+      else kirimAntre();
+    }, function (e) {
+      mengirim = false;
+      if (e && (e.kode === 'data_tidak_valid' || e.kode === 'tidak_ditemukan')) { setAntre(antre().filter(function (y) { return y.catatan.id !== x.catatan.id; })); }
+    });
+  }
+  function gabungAntre(catatanServer) {
+    var ids = {}; catatanServer.forEach(function (l) { ids[l.id] = 1; });
+    var tertunda = antre().filter(function (x) { return x.email === S.email && !ids[x.catatan.id]; }).map(function (x) {
+      var c = x.catatan; return { id: c.id, date: c.date, items: c.items, sim: c.sim, note: c.note, tertunda: true };
+    });
+    return catatanServer.concat(tertunda);
+  }
+  window.addEventListener('online', function () { kirimAntre(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) kirimAntre(); });
+
   /* ---------------- Pendaftaran & masuk ---------------- */
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
   function normEmail(v) { return String(v || '').trim().toLowerCase(); }
@@ -200,7 +284,7 @@
     else o.tampilLeaderboard = $('#p-lb').checked;
     return { data: o, err: err };
   }
-  function brand() { return '<div class="brand"><img src="assets/favicon.svg" alt="" width="28" height="28">Pelatih Garjas · JadiPrajurit</div>'; }
+  function brand() { return '<div class="brand"><img class="logo-terang" src="assets/logo-jadiprajurit.png" alt="JadiPrajurit" height="34"><img class="logo-gelap" src="assets/logo-jadiprajurit-terang.png" alt="JadiPrajurit" height="34"><span>SIGAP</span></div>'; }
   function viewDaftar() {
     var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Daftar untuk mulai</h1><div class="sub">Isi data diri sekali saja. Kolom bertanda * wajib diisi.</div></div></div>';
     h += '<div class="card stack">' + profileForm(draftDaftar, true);
@@ -224,6 +308,10 @@
     var r = readProfileForm(true);
     draftDaftar = r.data;
     if (r.err.length) { setAuthMsg('Lengkapi: ' + r.err.join(', ') + '.'); return; }
+    var saran = saranEmail(r.data.email);
+    if (saran && confirm('Apakah maksudmu ' + saran + '?\n\nTekan OK untuk memakai ' + saran + ', atau Batal untuk tetap memakai ' + r.data.email + '.')) { r.data.email = saran; var pe = $('#p-email'); if (pe) pe.value = saran; draftDaftar.email = saran; }
+    if (!confirm('Periksa data utamamu sebelum daftar:\n\nEmail (untuk masuk): ' + r.data.email + '\nWhatsApp: +' + r.data.wa + '\nJenis kelamin: ' + r.data.gender + '\nUsia: ' + r.data.age + ' tahun\nJalur: ' + r.data.jalur + ' TNI ' + r.data.matra + '\n\nJenis kelamin dan usia menentukan tabel nilai. Sudah benar?')) { setAuthMsg('Silakan periksa lagi datamu, lalu tekan Daftar.'); return; }
+    if (r.data.testDate && r.data.testDate < todayStr()) { setAuthMsg('Tanggal tes jasmani sudah lewat. Kosongkan atau isi tanggal tes berikutnya.'); return; }
     busy = true; authMsg = ''; render();
     var ref = lsGet(LS_REF);
     if (ref) r.data.ref = ref;
@@ -242,16 +330,21 @@
     if (!EMAIL_RE.test(e)) { setAuthMsg('Masukkan email yang valid.'); return; }
     busy = true; authMsg = ''; render();
     api('masuk', { email: e }).then(function (j) {
-      busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; simpanSesi();
+      busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; S.catatan = gabungAntre(S.catatan); simpanSesi(); kirimAntre();
       tab = 'beranda'; render(); toast('Selamat datang kembali, ' + String(j.profil.name).split(' ')[0] + '!');
-    }, function (err) { busy = false; authMsg = pesanError(err); render(); });
+    }, function (err) {
+      busy = false; authMsg = pesanError(err);
+      var saran = err && err.kode === 'tidak_ditemukan' ? saranEmail(e) : null;
+      if (saran) { authMsg = 'Email ' + e + ' tidak ditemukan. Mungkin maksudmu ' + saran + '? Emailnya sudah kami isikan, tekan Masuk lagi.'; draftLogin = saran; }
+      render();
+    });
   }
   function logout() { S = { email: null, profil: null, catatan: [] }; simpanSesi(); authView = 'login'; authMsg = ''; draftLogin = ''; render(); toast('Kamu sudah keluar.'); }
 
   /* ---------------- Beranda ---------------- */
   function viewBeranda() {
     var p = S.profil, cur = currentScores(), tg = target(), dl = daysToTest(), st = streak();
-    var h = '<div class="top"><div><div class="sub">Halo, ' + esc(String(p.name).split(' ')[0]) + '</div><h1>' + (dl != null ? (dl > 0 ? 'Tes jasmani ' + dl + ' hari lagi' : dl === 0 ? 'Hari ini tes jasmani. Semangat!' : 'Tanggal tes sudah lewat') : 'Pelatih Garjas') + '</h1><div class="sub">' + esc(p.jalur + ' TNI ' + p.matra + ', ' + p.gender + (p.age ? ', ' + p.age + ' tahun' : '')) + '</div></div></div>';
+    var h = brand() + '<div class="top" style="margin-top:-4px"><div><div class="sub">Halo, ' + esc(String(p.name).split(' ')[0]) + '</div><h1>' + (dl != null ? (dl > 0 ? 'Tes jasmani ' + dl + ' hari lagi' : dl === 0 ? 'Hari ini tes jasmani. Semangat!' : 'Tanggal tes sudah lewat') : 'SIGAP') + '</h1><div class="sub">' + esc(p.jalur + ' TNI ' + p.matra + ', ' + p.gender + (p.age ? ', ' + p.age + ' tahun' : '')) + '</div></div></div>';
     if (!S.catatan.length) {
       h += '<div class="card stack"><h2>Mulai dengan tes awal</h2><p class="small muted" style="margin:0">Lakukan dan catat lari 12 menit, ' + esc(itemLabel(ITEMS[1]).toLowerCase()) + ', sit-up, push-up, dan shuttle run sebagai titik mulai. Gunakan stopwatch di menu Catat supaya waktunya sama seperti tes.</p><button class="btn" data-go="catat">Catat tes awal</button></div>';
       if (!p.testDate) h += '<div class="card stack"><p class="small muted" style="margin:0">Isi tanggal tes jasmani di menu Profil supaya hitung mundur dan program latihan menyesuaikan.</p><button class="btn ghost" data-go="profil">Isi tanggal tes</button></div>';
@@ -259,7 +352,7 @@
     }
     var g = cur.garjas, gap = g != null ? Math.round((tg - g) * 10) / 10 : null;
     var weak = ITEMS.filter(function (it) { return cur.scores[it.key] != null && cur.scores[it.key] < tg; }).sort(function (a, b) { return cur.scores[a.key] - cur.scores[b.key]; });
-    h += '<section class="hero" aria-label="Prediksi nilai garjas"><div class="row" style="align-items:flex-start"><div><div class="soft">Prediksi nilai garjas</div><div style="display:flex;align-items:baseline;gap:8px"><span class="big">' + fmtNum(g, 1) + '</span><span class="soft">/ target ' + fmtNum(tg, 0) + '</span></div></div>' + (st > 0 ? '<span class="pill">' + icon('flame', 15) + st + ' hari beruntun</span>' : '') + '</div>';
+    h += '<section class="hero" aria-label="Prediksi nilai jasmani"><div class="row" style="align-items:flex-start"><div><div class="soft">Prediksi nilai jasmani</div><div style="display:flex;align-items:baseline;gap:8px"><span class="big">' + fmtNum(g, 1) + '</span><span class="soft">/ target ' + fmtNum(tg, 0) + '</span></div></div>' + (st > 0 ? '<span class="pill">' + icon('flame', 15) + st + ' hari beruntun</span>' : '') + '</div>';
     h += '<div class="hbar" role="img" aria-label="Nilai ' + fmtNum(g, 1) + ' dari target ' + fmtNum(tg, 0) + '"><i style="width:' + Math.max(2, Math.min(100, g || 0)) + '%"></i><b style="left:calc(' + Math.min(100, tg) + '% - 1px)"></b></div>';
     h += '<div class="soft" style="color:var(--hero-ink)">' + (gap > 0 ? 'Kurang ' + fmtNum(gap, 1) + ' poin.' + (weak.length ? ' Fokus utama: ' + weak.slice(0, 2).map(function (it) { return '<b>' + esc(itemLabel(it).toLowerCase()) + '</b>'; }).join(' dan ') + '.' : '') : 'Nilaimu sudah di atas target. Pertahankan konsistensi sampai hari tes.') + '</div>';
     if (Object.keys(cur.latest).length < ITEMS.length) h += '<div class="soft">Sebagian item belum pernah dicatat, jadi prediksi belum lengkap.</div>';
@@ -267,6 +360,8 @@
     h += '<div class="row" style="align-items:center"><span class="soft">' + (sy && sy.rankNilai ? 'Peringkat #' + sy.rankNilai + ' dari ' + LB.data.totalNilai + ' casis' : (sy && !sy.lengkap ? 'Catat kelima item untuk masuk peringkat' : '')) + '</span><button type="button" class="btn small" data-go="bagikan" style="background:var(--hero-ink);color:var(--hero)">' + icon('share', 18) + 'Bagikan</button></div>';
     h += '</section>';
 
+    var nAntre = S.catatan.filter(function (l) { return l.tertunda; }).length;
+    if (nAntre) h += '<div class="note warnbox small">' + nAntre + ' catatan tersimpan di HP dan menunggu dikirim. Pastikan koneksi internet menyala.</div>';
     var plan = programSekarang(), idx = (new Date().getDay() + 6) % 7, today = plan.hari[idx];
     h += '<div class="card stack"><div class="row"><h2>Latihan hari ini</h2>' + (today.durasi ? '<span class="small muted">± ' + today.durasi + ' menit</span>' : '') + '</div>';
     h += '<div class="display" style="font-weight:700;font-size:17px">' + esc(today.sesi) + '</div>';
@@ -291,7 +386,7 @@
     var h = '<div class="card stack"><h2>' + esc(judul || 'Kontak admin') + '</h2>';
     h += '<p class="small muted" style="margin:0">Hubungi ' + esc(nama) + ' untuk pertanyaan seputar latihan dan seleksi. Ganti HP? Simpan ulang nomornya supaya Status WhatsApp admin tetap terlihat.</p>';
     h += '<div class="btns"><a class="btn ghost" href="' + vcardAdmin() + '" download="' + esc(nama) + '.vcf">Simpan ulang nomor admin</a>';
-    h += '<a class="btn ghost" href="https://wa.me/' + esc(CFG.waAdmin) + '?text=' + encodeURIComponent('Halo admin JadiPrajurit, saya ' + (p.name || '') + ' (' + (p.email || '') + ') sudah daftar Pelatih Garjas.') + '" target="_blank" rel="noopener">Chat admin</a></div>';
+    h += '<a class="btn ghost" href="https://wa.me/' + esc(CFG.waAdmin) + '?text=' + encodeURIComponent('Halo admin JadiPrajurit, saya ' + (p.name || '') + ' (' + (p.email || '') + ') sudah daftar SIGAP.') + '" target="_blank" rel="noopener">Chat admin</a></div>';
     return h + '</div>';
   }
   /* Langkah wajib: simpan nomor admin */
@@ -364,6 +459,8 @@
     if (bad.length) { toast('Angka ' + bad.join(', ') + ' di luar batas wajar. Periksa lagi.'); return; }
     if (!count) { toast('Isi minimal satu hasil latihan.'); return; }
     if (draft.date > todayStr()) { toast('Tanggal tidak boleh di masa depan.'); return; }
+    var cek = periksaCatatan(items, draft.date);
+    if (!cek.ok) { toast(cek.pesan); return; }
     var before = currentScores();
     var bests = {}; ITEMS.forEach(function (it) { var ser = itemSeries(it.key); if (ser.length) bests[it.key] = Math.max.apply(null, ser.map(function (p) { return p.s; })); });
     var sim = draft.sim && isComplete(items);
@@ -379,11 +476,21 @@
       var dg = after.garjas != null && before.garjas != null ? Math.round((after.garjas - before.garjas) * 10) / 10 : null;
       var t = 'Tersimpan.';
       if (msgs.length) t += ' ' + msgs.slice(0, 2).join(', ').replace(/^./, function (c) { return c.toUpperCase(); }) + '!';
-      if (dg) t += ' Prediksi garjas ' + (dg > 0 ? 'naik ' : 'turun ') + fmtNum(Math.abs(dg), 1) + ' poin.';
+      if (dg) t += ' Prediksi nilai jasmani ' + (dg > 0 ? 'naik ' : 'turun ') + fmtNum(Math.abs(dg), 1) + ' poin.';
       if (draft.sim && !sim) t += ' (Tidak ditandai simulasi karena item belum lengkap.)';
       draft = { date: todayStr(), items: {}, sim: false, note: '' };
       toast(t); go('beranda');
-    }, function (e) { busy = false; render(); toast(pesanError(e)); });
+    }, function (e) {
+      busy = false;
+      if (e && (e.kode === 'jaringan' || e.kode === 'sibuk' || e.kode === 'server')) {
+        // Jangan sampai catatan hilang: simpan di HP dan kirim otomatis nanti.
+        var a = antre(); a.push({ email: S.email, catatan: Object.assign({ garjas: N.garjasItems(items, gender()) }, log) }); setAntre(a);
+        S.catatan.push(Object.assign({ tertunda: true }, log)); simpanSesi();
+        draft = { date: todayStr(), items: {}, sim: false, note: '' };
+        toast('Koneksi bermasalah. Catatan disimpan di HP dan akan dikirim otomatis saat koneksi kembali.'); go('beranda');
+        setTimeout(kirimAntre, 15000);
+      } else { render(); toast(pesanError(e)); }
+    });
   }
 
   /* ---------------- Alat bantu tes ---------------- */
@@ -454,7 +561,7 @@
     var nowS = currentScores(), before = currentScores(dstr(pe)), lines = [];
     lines.push('Hari latihan tercatat: ' + Object.keys(days).length + ' dari 7');
     if (nowS.garjas != null) {
-      var t = 'Prediksi nilai garjas: ' + fmtNum(nowS.garjas, 1) + ' (target ' + fmtNum(tg, 0) + ')';
+      var t = 'Prediksi nilai jasmani: ' + fmtNum(nowS.garjas, 1) + ' (target ' + fmtNum(tg, 0) + ')';
       if (before.garjas != null && week.length) { var dg = Math.round((nowS.garjas - before.garjas) * 10) / 10; t += dg ? ', ' + (dg > 0 ? 'naik ' : 'turun ') + fmtNum(Math.abs(dg), 1) + ' dari minggu lalu' : ', sama dengan minggu lalu'; }
       lines.push(t);
     }
@@ -469,7 +576,7 @@
     var st = streak(); if (st > 1) lines.push('Latihan beruntun: ' + st + ' hari');
     var dl = daysToTest(); if (dl != null && dl > 0) lines.push('Tes jasmani: ' + dl + ' hari lagi');
     var range = fmtDate(a) + ' – ' + fmtDate(b), body = lines.join('\n');
-    return { range: range, body: body, full: 'Ringkasan latihan jasmani ' + String(S.profil.name).split(' ')[0] + ', ' + range + '\n' + body + '\n\nDicatat dengan Pelatih Garjas, JadiPrajurit' };
+    return { range: range, body: body, full: 'Ringkasan latihan jasmani ' + String(S.profil.name).split(' ')[0] + ', ' + range + '\n' + body + '\n\nDicatat dengan SIGAP, aplikasi JadiPrajurit' };
   }
   function copyText(t) {
     function fallback() {
@@ -504,7 +611,7 @@
     var ws = weekSummary();
     h += '<div class="card stack"><div class="row"><h2>Ringkasan minggu ini</h2><span class="tiny muted">' + esc(ws.range) + '</span></div><div class="small" style="white-space:pre-line">' + esc(ws.body) + '</div>';
     h += '<div class="btns"><button class="btn small" id="copy-week">Salin ringkasan</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(ws.full) + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a><button class="btn ghost small" data-go="bagikan">' + icon('share', 18) + 'Bagikan gambar</button></div></div>';
-    var opts = [['garjas', 'Nilai garjas']].concat(ITEMS.map(function (it) { return [it.key, itemLabel(it)]; }));
+    var opts = [['garjas', 'Nilai jasmani']].concat(ITEMS.map(function (it) { return [it.key, itemLabel(it)]; }));
     h += '<div class="chips" role="group" aria-label="Pilih item">' + opts.map(function (o) { return '<button type="button" class="chip" data-pick="' + o[0] + '" aria-pressed="' + (progressPick === o[0]) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>';
     var series = progressPick === 'garjas' ? garjasSeries() : itemSeries(progressPick);
     var last = series.length ? series[series.length - 1].s : null, first = series.length ? series[0].s : null;
@@ -523,7 +630,7 @@
     }
     h += '<div class="card"><h2 style="padding-bottom:6px">Riwayat</h2>';
     sortedLogs().reverse().slice(0, 40).forEach(function (l) {
-      h += '<div class="hist"><div class="row"><span style="font-weight:700">' + esc(fmtDate(l.date)) + ' ' + (l.sim ? '<span class="tag sim">Simulasi</span>' : '') + '</span><button type="button" class="linkbtn" data-del="' + esc(l.id) + '">Hapus</button></div>';
+      h += '<div class="hist"><div class="row"><span style="font-weight:700">' + esc(fmtDate(l.date)) + ' ' + (l.sim ? '<span class="tag sim">Simulasi</span>' : '') + (l.tertunda ? ' <span class="tag">Menunggu dikirim</span>' : '') + '</span><button type="button" class="linkbtn" data-del="' + esc(l.id) + '">Hapus</button></div>';
       h += '<div class="small">' + ITEMS.filter(function (it) { return l.items[it.key] != null; }).map(function (it) { return esc(itemLabel(it)) + ': ' + fmtNum(l.items[it.key], 1) + ' ' + it.unit + ' <span class="muted">(nilai ' + fmtNum(score(it.key, l.items[it.key]), 0) + ')</span>'; }).join('<br>') + '</div>';
       if (l.note) h += '<div class="tiny muted">' + esc(l.note) + '</div>';
       h += '</div>';
@@ -532,6 +639,8 @@
   }
   function hapusLog(id) {
     if (busy || !confirm('Hapus catatan ini?')) return;
+    var lokal = S.catatan.filter(function (l) { return l.id === id && l.tertunda; })[0];
+    if (lokal) { setAntre(antre().filter(function (x) { return x.catatan.id !== id; })); S.catatan = S.catatan.filter(function (l) { return l.id !== id; }); simpanSesi(); render(); toast('Catatan dihapus.'); return; }
     var sisa = S.catatan.filter(function (l) { return l.id !== id; }), simpan = S.catatan;
     S.catatan = sisa; var rk = ringkasan(); S.catatan = simpan;
     busy = true;
@@ -587,7 +696,7 @@
   }
   function softRender() { var a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return; if (!busy) render(); }
   function viewPeringkat() {
-    var h = '<div class="top"><div><h1>Peringkat casis</h1><div class="sub">Dari catatan mandiri casis Pelatih Garjas' + (LB.data ? ', diperbarui ' + esc(String(LB.data.waktu).slice(11)) : '') + '</div></div></div>';
+    var h = '<div class="top"><div><h1>Peringkat casis</h1><div class="sub">Dari catatan mandiri casis SIGAP' + (LB.data ? ', diperbarui ' + esc(String(LB.data.waktu).slice(11)) : '') + '</div></div></div>';
     if (!LB.data) {
       h += '<div class="card" style="text-align:center">' + (LB.err ? '<p class="small warn" style="margin:0 0 10px">' + esc(LB.err) + '</p><button class="btn ghost small" id="lb-refresh">Coba lagi</button>' : '<span class="spin" aria-hidden="true"></span> Memuat peringkat…') + '</div>';
       return h;
@@ -596,12 +705,12 @@
     h += '<div class="hero"><div class="soft">Posisimu</div>';
     if (sy.tampil === false) h += '<div class="display" style="font-weight:700;font-size:20px">Kamu sedang disembunyikan dari peringkat.</div><button class="btn small" data-go="profil" style="background:var(--hero-ink);color:var(--hero);align-self:flex-start">Tampilkan di Profil</button>';
     else {
-      h += '<div class="grid2"><div><div class="big" style="font-size:44px">' + (sy.rankNilai ? '#' + sy.rankNilai : '–') + '</div><div class="soft">nilai garjas, dari ' + d.totalNilai + ' casis</div></div><div><div class="big" style="font-size:44px">' + (sy.rankRajin ? '#' + sy.rankRajin : '–') + '</div><div class="soft">paling rajin minggu ini</div></div></div>';
+      h += '<div class="grid2"><div><div class="big" style="font-size:44px">' + (sy.rankNilai ? '#' + sy.rankNilai : '–') + '</div><div class="soft">nilai jasmani, dari ' + d.totalNilai + ' casis</div></div><div><div class="big" style="font-size:44px">' + (sy.rankRajin ? '#' + sy.rankRajin : '–') + '</div><div class="soft">paling rajin minggu ini</div></div></div>';
       if (!sy.lengkap) h += '<div class="soft" style="color:var(--hero-ink)">Catat kelima item tes (lari, ' + esc(itemLabel(ITEMS[1]).toLowerCase()) + ', sit-up, push-up, shuttle run) untuk masuk peringkat nilai.</div>';
       if (S.catatan.length) h += '<button type="button" class="btn small" data-go="bagikan" style="background:var(--hero-ink);color:var(--hero);align-self:flex-start">' + icon('share', 18) + 'Bagikan posisiku</button>';
     }
     h += '</div>';
-    h += '<div class="chips" role="group" aria-label="Jenis peringkat">' + [['nilai', 'Nilai garjas'], ['rajin', 'Paling rajin minggu ini']].map(function (o) { return '<button type="button" class="chip" data-lbmode="' + o[0] + '" aria-pressed="' + (lbMode === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>';
+    h += '<div class="chips" role="group" aria-label="Jenis peringkat">' + [['nilai', 'Nilai jasmani'], ['rajin', 'Paling rajin minggu ini']].map(function (o) { return '<button type="button" class="chip" data-lbmode="' + o[0] + '" aria-pressed="' + (lbMode === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>';
     h += '<div class="chips" role="group" aria-label="Filter matra">' + ['Semua', 'AD', 'AL', 'AU'].map(function (m) { return '<button type="button" class="chip" data-lbmatra="' + m + '" aria-pressed="' + (lbMatra === m) + '">' + (m === 'Semua' ? 'Semua matra' : 'TNI ' + m) + '</button>'; }).join('') + '</div>';
     var list = (lbMode === 'nilai' ? d.nilai : d.rajin).filter(function (x) { return lbMatra === 'Semua' || x.matra === lbMatra; }).slice(0, 50);
     h += '<div class="card" style="padding:8px">';
@@ -621,55 +730,59 @@
   function linkBagikan() { var base = location.origin + location.pathname.replace(/index\.html$/, ''); return S.profil && S.profil.kodeBagikan ? base + '?h=' + S.profil.kodeBagikan : base; }
   function teksBagikan() {
     var g = currentScores().garjas, sy = LB.data && LB.data.saya;
-    return 'Prediksi nilai garjas saya ' + fmtNum(g, 1) + ' dari 100' + (sy && sy.rankNilai ? ', peringkat #' + sy.rankNilai + ' dari ' + LB.data.totalNilai + ' casis' : '') + '. Seberapa siap fisikmu untuk tes TNI? Ukur gratis di Pelatih Garjas JadiPrajurit:';
+    return 'Prediksi nilai jasmani saya ' + fmtNum(g, 1) + ' dari 100' + (sy && sy.rankNilai ? ', peringkat #' + sy.rankNilai + ' dari ' + LB.data.totalNilai + ' casis' : '') + '. Ukur kesiapan fisikmu sekarang juga di SIGAP, aplikasi JadiPrajurit, tersedia di Play Store dan App Store. Lihat hasilku:';
   }
   function rr(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
+  var logoStiker = null;
+  function muatLogo() {
+    if (logoStiker) return Promise.resolve(logoStiker);
+    return new Promise(function (res) { var im = new Image(); im.onload = function () { logoStiker = im; res(im); }; im.onerror = function () { res(null); }; im.src = 'assets/logo-jadiprajurit-stiker.png'; });
+  }
   function gambarHasil() {
     var W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H;
     var x = c.getContext('2d'), p = S.profil, cur = currentScores(), tg = target(), g = cur.garjas || 0, sy = LB.data && LB.data.saya;
-    var AR = "'Archivo', 'Arial Narrow', Arial, sans-serif", PS = "'Public Sans', 'Segoe UI', Arial, sans-serif";
-    var INK = '#F3F2EC', SOFT = '#D9E3D4';
-    x.fillStyle = '#1F3A2A'; x.fillRect(0, 0, W, H);
-    x.fillStyle = '#24432F'; x.beginPath(); x.moveTo(0, 1240); x.lineTo(W, 1040); x.lineTo(W, H); x.lineTo(0, H); x.fill();
-    x.fillStyle = INK; rr(x, 90, 240, 72, 72, 16); x.fill();
-    x.strokeStyle = '#1F3A2A'; x.lineWidth = 8; x.lineCap = 'round'; x.lineJoin = 'round';
-    [264, 290].forEach(function (yy) { x.beginPath(); x.moveTo(108, yy - 6); x.lineTo(126, yy + 6); x.lineTo(144, yy - 6); x.stroke(); });
-    x.fillStyle = SOFT; x.font = '600 38px ' + PS; x.textBaseline = 'alphabetic'; x.fillText('Pelatih Garjas · JadiPrajurit', 186, 290);
-    x.fillStyle = INK; x.font = '800 80px ' + AR; x.fillText(namaPendek(p.name), 90, 460);
-    x.fillStyle = SOFT; x.font = '500 40px ' + PS; x.fillText(p.jalur + ' TNI ' + p.matra, 90, 522);
-    x.font = '600 40px ' + PS; x.fillText('Prediksi nilai garjas', 90, 650);
-    x.fillStyle = INK; x.font = '800 290px ' + AR; var gs = fmtNum(g, 1); x.fillText(gs, 76, 920);
-    var w = x.measureText(gs).width; x.fillStyle = SOFT; x.font = '600 50px ' + PS; x.fillText('/ 100', 76 + w + 22, 920);
-    x.fillStyle = 'rgba(243,242,236,0.22)'; rr(x, 90, 995, 900, 26, 13); x.fill();
-    x.fillStyle = INK; rr(x, 90, 995, Math.max(26, 900 * Math.min(100, g) / 100), 26, 13); x.fill();
-    x.fillStyle = '#F2B27A'; rr(x, 90 + 900 * Math.min(100, tg) / 100 - 3, 981, 6, 54, 3); x.fill();
-    x.fillStyle = SOFT; x.font = '500 34px ' + PS; x.textAlign = 'right'; x.fillText('Target ' + fmtNum(tg, 0), 990, 1080); x.textAlign = 'left';
+    var MS = "'Montserrat', 'Public Sans', Arial, sans-serif", ST = "'Saira Stencil One', 'Archivo', Arial, sans-serif";
+    var INK = '#F3F2EC', SOFT = '#C3D2BD', HIJAU = '#8CCB86', ORANYE = '#F29A38';
+    x.fillStyle = '#121810'; x.fillRect(0, 0, W, H);
+    x.strokeStyle = 'rgba(140,203,134,0.08)'; x.lineWidth = 2;
+    for (var i = 0; i < W; i += 60) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, H); x.stroke(); }
+    for (var j = 0; j < H; j += 60) { x.beginPath(); x.moveTo(0, j); x.lineTo(W, j); x.stroke(); }
+    x.strokeStyle = 'rgba(140,203,134,0.18)'; x.lineWidth = 3;
+    [300, 480, 660].forEach(function (r) { x.beginPath(); x.arc(820, 880, r / 2, 0, Math.PI * 2); x.stroke(); });
+    x.strokeStyle = ORANYE; x.lineWidth = 8; x.lineCap = 'butt';
+    [[80, 220, 1, 1], [1000, 220, -1, 1], [80, 1720, 1, -1], [1000, 1720, -1, -1]].forEach(function (b) { x.beginPath(); x.moveTo(b[0], b[1] + b[3] * 60); x.lineTo(b[0], b[1]); x.lineTo(b[0] + b[2] * 60, b[1]); x.stroke(); });
+    if (logoStiker) { var lw = 720; x.drawImage(logoStiker, 118, 252, lw, lw * logoStiker.height / logoStiker.width); }
+    else { x.fillStyle = INK; x.font = '800 64px ' + MS; x.fillText('JADIPRAJURIT', 130, 340); }
+    x.fillStyle = HIJAU; x.font = '34px ' + ST; x.fillText('// LAPORAN SIGAP · ' + (p.jalur + ' TNI ' + p.matra).toUpperCase(), 130, 500);
+    x.fillStyle = INK; x.font = '800 84px ' + MS; x.fillText(namaPendek(p.name), 130, 610);
+    x.fillStyle = SOFT; x.font = '600 36px ' + MS; x.fillText('Prediksi nilai jasmani', 130, 705);
+    x.fillStyle = INK; x.font = '290px ' + ST; x.fillText(fmtNum(g, 1), 110, 985);
+    var info = 'TARGET ' + fmtNum(tg, 0) + (sy && sy.rankNilai ? '   #' + sy.rankNilai + ' DARI ' + LB.data.totalNilai : '');
+    var st = streak(); if (st > 1) info += '   ' + st + ' HARI BERUNTUN';
+    x.fillStyle = ORANYE; x.font = '40px ' + ST; x.fillText(info, 130, 1085);
     var y = 1165;
     ITEMS.forEach(function (it) {
       var l = cur.latest[it.key], sc = cur.scores[it.key];
-      x.fillStyle = INK; x.font = '600 38px ' + PS; x.fillText(itemLabel(it), 90, y);
-      x.textAlign = 'right'; x.font = (l ? '700 ' : '500 ') + '38px ' + PS; x.fillStyle = l ? INK : SOFT;
-      x.fillText(l ? fmtNum(l.raw, 1) + ' ' + it.unit + '  ·  nilai ' + fmtNum(sc, 0) : 'belum dicatat', 990, y); x.textAlign = 'left';
-      x.fillStyle = 'rgba(243,242,236,0.18)'; rr(x, 90, y + 20, 900, 14, 7); x.fill();
-      if (sc != null) { x.fillStyle = sc >= tg ? '#8CCB86' : '#F2A766'; rr(x, 90, y + 20, Math.max(14, 900 * sc / 100), 14, 7); x.fill(); }
+      x.fillStyle = SOFT; x.font = '600 32px ' + MS; x.fillText(itemLabel(it), 130, y);
+      x.textAlign = 'right'; x.fillStyle = l ? INK : SOFT; x.font = '36px ' + ST;
+      x.fillText(l ? fmtNum(l.raw, 1) + ' ' + it.unit + '  ' + fmtNum(sc, 0) : 'BELUM DICATAT', 950, y); x.textAlign = 'left';
+      var isi = sc != null ? Math.round(sc / 5) : 0;
+      for (var k = 0; k < 20; k++) { x.fillStyle = k < isi ? (sc >= tg ? HIJAU : ORANYE) : 'rgba(243,242,236,0.12)'; x.fillRect(130 + k * 41, y + 18, 33, 12); }
       y += 80;
     });
-    var pills = [];
-    if (sy && sy.rankNilai) pills.push('Peringkat #' + sy.rankNilai + ' dari ' + LB.data.totalNilai);
-    var st = streak(); if (st > 1) pills.push(st + ' hari latihan beruntun');
-    var px = 90; x.font = '700 34px ' + PS;
-    pills.forEach(function (t) { var tw = x.measureText(t).width + 56; x.fillStyle = INK; rr(x, px, 1556, tw, 66, 33); x.fill(); x.fillStyle = '#8A3B0A'; x.fillText(t, px + 28, 1600); px += tw + 18; });
-    x.fillStyle = INK; rr(x, 90, 1644, 900, 76, 20); x.fill();
-    x.fillStyle = '#1F3A2A'; x.font = '700 34px ' + PS; x.fillText('Ukur kesiapan fisikmu, gratis', 120, 1693);
-    x.textAlign = 'right'; x.font = '600 28px ' + PS; x.fillText(location.host || 'Pelatih Garjas', 960, 1693); x.textAlign = 'left';
+    x.strokeStyle = 'rgba(140,203,134,0.35)'; x.lineWidth = 2; x.beginPath(); x.moveTo(130, 1532); x.lineTo(950, 1532); x.stroke();
+    x.fillStyle = INK; x.font = '800 34px ' + MS; x.fillText('Ukur kesiapan fisikmu sekarang juga', 130, 1590); x.fillText('di aplikasi JadiPrajurit.', 130, 1634);
+    x.font = '30px ' + ST; x.fillStyle = ORANYE; x.fillText('TERSEDIA DI', 130, 1686);
+    var px = 330;
+    ['PLAY STORE', 'APP STORE'].forEach(function (t) { var tw = x.measureText(t).width + 40; x.strokeStyle = INK; x.lineWidth = 3; rr(x, px, 1652, tw, 50, 10); x.stroke(); x.fillStyle = INK; x.fillText(t, px + 20, 1688); px += tw + 16; });
     return c;
   }
   function siapkanBagikan() {
     if (!S.catatan.length) return;
     share.loading = true; share.err = '';
-    var fonts = document.fonts && document.fonts.load ? Promise.all(['800 100px Archivo', '600 40px "Public Sans"', '700 40px "Public Sans"', '500 40px "Public Sans"'].map(function (f) { return document.fonts.load(f); })) : Promise.resolve();
+    var fonts = document.fonts && document.fonts.load ? Promise.all(['800 84px Montserrat', '600 36px Montserrat', '40px "Saira Stencil One"'].map(function (f) { return document.fonts.load(f); })) : Promise.resolve();
     var batas = new Promise(function (r) { setTimeout(r, 2500); });
-    Promise.race([Promise.all([fonts, muatLB(false).catch(function () { })]), batas]).then(function () {
+    Promise.race([Promise.all([fonts, muatLogo(), muatLB(false).catch(function () { })]), batas]).then(function () {
       var c = gambarHasil();
       return new Promise(function (res, rej) { if (c.toBlob) c.toBlob(function (b) { b ? res(b) : rej(); }, 'image/png'); else rej(); });
     }).then(function (blob) {
@@ -683,11 +796,11 @@
     if (!S.catatan.length) return h + '<div class="card stack"><p class="small muted" style="margin:0">Catat latihan dulu supaya ada hasil yang bisa dibagikan.</p><button class="btn" data-go="catat">Catat latihan</button></div>';
     h += '<div class="card stack" style="align-items:center">';
     if (share.loading || (!share.url && !share.err)) h += '<div class="share-prev" style="display:flex;align-items:center;justify-content:center"><span class="spin" aria-hidden="true"></span></div>';
-    else if (share.url) h += '<img class="share-prev" src="' + share.url + '" alt="Gambar hasil latihan: prediksi nilai garjas ' + fmtNum(currentScores().garjas, 1) + '">';
+    else if (share.url) h += '<img class="share-prev" src="' + share.url + '" alt="Gambar hasil latihan JadiPrajurit: prediksi nilai jasmani ' + fmtNum(currentScores().garjas, 1) + '">';
     if (share.err) h += '<p class="small warn" style="margin:0">' + esc(share.err) + '</p>';
     h += '<div class="btns" style="width:100%">';
     if (navigator.share) h += '<button class="btn" id="share-native"' + (share.loading ? ' disabled' : '') + '>' + icon('share', 18) + 'Bagikan</button>';
-    if (share.url) h += '<a class="btn ghost" href="' + share.url + '" download="hasil-garjas-jadiprajurit.png">Unduh gambar</a>';
+    if (share.url) h += '<a class="btn ghost" href="' + share.url + '" download="hasil-sigap-jadiprajurit.png">Unduh gambar</a>';
     h += '</div><p class="tiny muted" style="margin:0;text-align:center">Ukuran pas untuk Instagram Story dan Status WhatsApp.</p></div>';
     var link = linkBagikan();
     h += '<div class="card stack"><h2>Link hasilmu</h2><div class="small" style="word-break:break-all;background:var(--line2);border-radius:10px;padding:10px 12px">' + esc(link) + '</div>';
@@ -696,10 +809,10 @@
     return h;
   }
   function bagikanNative() {
-    var link = linkBagikan(), data = { title: 'Hasil latihan Pelatih Garjas', text: teksBagikan(), url: link };
+    var link = linkBagikan(), data = { title: 'Hasil latihan SIGAP', text: teksBagikan(), url: link };
     try {
       if (share.blob && window.File) {
-        var f = new File([share.blob], 'hasil-garjas-jadiprajurit.png', { type: 'image/png' });
+        var f = new File([share.blob], 'hasil-sigap-jadiprajurit.png', { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [f] })) { data.files = [f]; data.text = teksBagikan() + ' ' + link; delete data.url; }
       }
     } catch (e) { }
@@ -713,9 +826,9 @@
     if (!landing.data) return h + '<div class="card" style="text-align:center">' + (landing.err ? '<p class="small muted" style="margin:0 0 10px">' + esc(landing.err) + '</p>' : '<span class="spin" aria-hidden="true"></span> Memuat hasil…') + '</div>' + ctaLanding();
     var d = landing.data, tg = d.target || 70;
     h += '<div><h1 style="margin:0;font-family:Archivo,sans-serif;font-weight:800;font-size:26px;line-height:1.2">' + esc(d.nama) + ' sedang bersiap untuk tes jasmani TNI</h1><div class="sub">' + esc(d.jalur + ' TNI ' + d.matra) + '</div></div>';
-    h += '<section class="hero"><div class="soft">Prediksi nilai garjas</div><div style="display:flex;align-items:baseline;gap:8px"><span class="big">' + fmtNum(d.nilai, 1) + '</span><span class="soft">/ 100</span></div>';
+    h += '<section class="hero"><div class="soft">Prediksi nilai jasmani</div><div style="display:flex;align-items:baseline;gap:8px"><span class="big">' + fmtNum(d.nilai, 1) + '</span><span class="soft">/ 100</span></div>';
     h += '<div class="hbar" aria-hidden="true"><i style="width:' + Math.max(2, Math.min(100, d.nilai || 0)) + '%"></i><b style="left:calc(' + Math.min(100, tg) + '% - 1px)"></b></div>';
-    if (d.rankNilai) h += '<div class="soft" style="color:var(--hero-ink)">Peringkat <b>#' + d.rankNilai + '</b> dari ' + d.totalNilai + ' casis Pelatih Garjas</div>';
+    if (d.rankNilai) h += '<div class="soft" style="color:var(--hero-ink)">Peringkat <b>#' + d.rankNilai + '</b> dari ' + d.totalNilai + ' casis SIGAP</div>';
     h += '</section><div class="card">';
     d.items.forEach(function (x) {
       var it = ITEMS.filter(function (i) { return i.key === x.key; })[0], ok = x.nilai != null && x.nilai >= tg;
@@ -725,7 +838,7 @@
     return h + ctaLanding();
   }
   function ctaLanding() {
-    var h = '<div class="card stack"><h2>Seberapa siap fisikmu?</h2><p class="small muted" style="margin:0">Catat latihanmu, lihat prediksi nilai garjas, dapatkan program latihan mingguan, dan bersaing di peringkat casis. Gratis.</p>';
+    var h = '<div class="card stack"><h2>Seberapa siap fisikmu?</h2><p class="small muted" style="margin:0">Catat latihanmu, lihat prediksi nilai jasmani, dapatkan program latihan mingguan, dan bersaing di peringkat casis. Gratis.</p>';
     if (S.email) h += '<button class="btn" id="landing-app">Buka aplikasiku</button>';
     else h += '<button class="btn" id="landing-daftar">Ukur nilaimu sekarang</button><p class="small muted" style="text-align:center;margin:0">Sudah punya akun? <button type="button" class="linkbtn" style="color:var(--good)" id="landing-masuk">Masuk</button></p>';
     return h + '</div>';
@@ -788,6 +901,18 @@
       baris(j.versi === BACKEND_DIHARAPKAN ? true : 'warn', 'Versi backend ' + BACKEND_DIHARAPKAN, j.versi === BACKEND_DIHARAPKAN ? 'Sesuai dengan versi web.' : 'Backend masih versi ' + esc(j.versi) + '. Tempel Code.gs terbaru, jalankan setup, lalu Deploy → Manage deployments → pensil → New version.');
       return api('config', null, 'GET');
     }).then(function (c) {
+      var urut = [];
+      ['Pria', 'Wanita'].forEach(function (g) {
+        ITEMS.forEach(function (it) {
+          var t = (c.standar && c.standar[g] && c.standar[g][it.key]) || [];
+          for (var i = 1; i < t.length; i++) {
+            var naikNilai = t[i][1] - t[i - 1][1];
+            if ((it.key === 'shuttle' && naikNilai > 0) || (it.key !== 'shuttle' && naikNilai < 0)) { urut.push(g + ' ' + it.label); break; }
+            if (t[i][0] === t[i - 1][0]) { urut.push(g + ' ' + it.label + ' (hasil ganda)'); break; }
+          }
+        });
+      });
+      baris(urut.length ? false : true, 'Urutan tabel nilai', urut.length ? 'Tidak berurutan, periksa baris: ' + esc(urut.join(', ')) + '. Hasil lebih baik harus bernilai lebih tinggi (shuttle run: waktu lebih cepat bernilai lebih tinggi).' : 'Semua tabel berurutan dengan benar.');
       baris(c.standarLengkap ? true : 'warn', 'Tab Standar Nilai', c.standarLengkap ? 'Semua item untuk Pria dan Wanita terbaca.' : 'Ada item yang kurang dari 2 baris, sementara memakai tabel contoh untuk item itu.');
       baris(c.standarResmi ? true : 'warn', 'Standar nilai resmi', c.standarResmi ? 'Sumber: ' + esc(c.sumberStandar || '(belum diisi)') : (c.sumberStandar ? 'Sumber: ' + esc(c.sumberStandar) + '. Ubah standar_resmi menjadi YA di tab Pengaturan setelah dicocokkan dengan juknis.' : 'Masih tabel contoh. Isi tabel resmi lalu ubah standar_resmi menjadi YA di tab Pengaturan.'));
       baris(c.linkGrup ? true : 'warn', 'Link grup WhatsApp', c.linkGrup ? 'Terisi.' : 'Kosong (opsional). Isi link_grup_wa di tab Pengaturan.');
@@ -855,6 +980,17 @@
 
   /* ---------------- Mulai ---------------- */
   if (/[?&]cek=1/.test(location.search)) { renderCek(); return; }
+  (function () {
+    var vf = window.VERSI_FILE || {}, cssV = getComputedStyle(document.documentElement).getPropertyValue('--versi').replace(/["'\s]/g, '');
+    if (vf['nilai.js'] !== VERSI || (cssV && cssV !== VERSI)) {
+      var b = document.createElement('div');
+      b.setAttribute('role', 'alert');
+      b.style.cssText = 'position:sticky;top:0;z-index:9;background:#9A4207;color:#fff;padding:10px 14px;font-weight:700;font-size:14px;display:flex;gap:10px;align-items:center;justify-content:space-between';
+      b.innerHTML = '<span>Aplikasi baru saja diperbarui. Muat ulang supaya semua fitur berjalan benar.</span>';
+      var btn = document.createElement('button'); btn.textContent = 'Muat ulang'; btn.style.cssText = 'min-height:40px;border:0;border-radius:10px;padding:0 12px;font-weight:700;cursor:pointer';
+      btn.onclick = function () { location.reload(); }; b.appendChild(btn); document.body.insertBefore(b, document.body.firstChild);
+    }
+  })();
   var mh = location.search.match(/[?&]h=([A-Za-z0-9]{6,12})/);
   if (mh) {
     landing.kode = mh[1].toUpperCase(); landing.aktif = true;
@@ -868,7 +1004,7 @@
   render();
   if (S.email) {
     api('masuk', { email: S.email }).then(function (j) {
-      S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; simpanSesi();
+      S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; S.catatan = gabungAntre(S.catatan); simpanSesi(); kirimAntre();
       var a = document.activeElement;
       if (!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) && !busy) render();
     }, function (e) {
