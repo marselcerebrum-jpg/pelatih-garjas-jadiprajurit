@@ -45,27 +45,28 @@ var MATRA = ['AD', 'AL', 'AU'];
 var JALUR = ['Tamtama', 'Bintara', 'Akmil', 'PA PK'];
 var GENDER = ['Pria', 'Wanita'];
 
-/* Tabel CONTOH (hasil : nilai). Ganti di tab Standar Nilai dengan tabel resmi. */
+/* Isi awal tab Standar Nilai: tabel Garjas TNI golongan umur 18–25 tahun (hasil : nilai).
+   Nilai 100 mengikuti naskah Pusdikjas TNI AD. Cocokkan dengan juknis seleksi terbaru. */
 var STANDAR_CONTOH = {
   Pria: {
-    lari: [[1000, 0], [1600, 30], [2000, 45], [2400, 62], [2800, 78], [3200, 92], [3500, 100]],
-    pullup: [[0, 0], [5, 35], [10, 60], [14, 76], [17, 90], [20, 100]],
-    situp: [[0, 0], [10, 20], [25, 50], [35, 68], [42, 82], [50, 100]],
-    pushup: [[0, 0], [10, 20], [25, 50], [35, 68], [43, 85], [50, 100]],
-    shuttle: [[15, 100], [16, 86], [17, 75], [18, 66], [20, 50], [22, 30], [26, 0]]
+    lari: [[1607, 0], [3507, 100]],
+    pullup: [[0, 0], [1, 15], [18, 100]],
+    situp: [[13, 0], [14, 1], [32, 55], [41, 100]],
+    pushup: [[15, 0], [16, 1], [34, 55], [43, 100]],
+    shuttle: [[15.9, 100], [25.9, 0]]
   },
   Wanita: {
-    lari: [[800, 0], [1200, 20], [1700, 45], [2100, 62], [2500, 80], [2900, 100]],
-    pullup: [[0, 0], [20, 40], [40, 65], [60, 85], [72, 100]],
-    situp: [[0, 0], [10, 20], [20, 45], [30, 65], [38, 82], [45, 100]],
-    pushup: [[0, 0], [8, 20], [18, 45], [28, 65], [36, 82], [44, 100]],
-    shuttle: [[17, 100], [18.5, 78], [20, 65], [22, 50], [24, 30], [28, 0]]
+    lari: [[1530, 0], [2630, 100]],
+    pullup: [[11, 0], [12, 2], [13, 4], [14, 6], [15, 8], [16, 10], [17, 12], [18, 14], [19, 16], [20, 18], [21, 20], [22, 22], [23, 24], [24, 26], [25, 29], [26, 31], [27, 33], [28, 35], [29, 37], [30, 39], [31, 43], [32, 46], [33, 49], [34, 51], [35, 53], [36, 55], [37, 57], [38, 58], [39, 60], [40, 62], [41, 63], [42, 65], [43, 67], [44, 68], [45, 70], [46, 72], [47, 73], [48, 75], [49, 77], [50, 78], [51, 80], [52, 82], [53, 83], [54, 85], [55, 87], [56, 88], [57, 90], [58, 92], [59, 93], [60, 95], [61, 97], [62, 98], [63, 100]],
+    situp: [[13, 0], [14, 3], [27, 55], [36, 100]],
+    pushup: [[5, 0], [6, 3], [19, 55], [28, 100]],
+    shuttle: [[17.2, 100], [27.2, 0]]
   }
 };
 
 var PENGATURAN_AWAL = [
-  ['standar_resmi', 'TIDAK', 'Ubah menjadi YA setelah tab Standar Nilai diisi tabel resmi. Selama TIDAK, aplikasi menampilkan peringatan bahwa tabel masih contoh.'],
-  ['sumber_standar', '', 'Sumber tabel nilai, misalnya nama juknis dan tahunnya. Tampil di aplikasi.'],
+  ['standar_resmi', 'TIDAK', 'Ubah menjadi YA setelah tabel di tab Standar Nilai dicocokkan dengan juknis seleksi resmi. Selama TIDAK, aplikasi menampilkan keterangan bahwa tabel belum ditandai resmi.'],
+  ['sumber_standar', 'Tabel Garjas TNI golongan umur 18–25 tahun (nilai 100 sesuai naskah Pusdikjas TNI AD); perlu dicocokkan dengan juknis seleksi terbaru', 'Sumber tabel nilai, misalnya nama juknis dan tahunnya. Tampil di aplikasi.'],
   ['target_default', '70', 'Target nilai awal untuk casis yang baru mendaftar.'],
   ['link_grup_wa', '', 'Link grup WhatsApp casis. Kosongkan bila tidak ada.'],
   ['wa_admin', '', 'Nomor WhatsApp admin untuk bantuan, format 628xxxxxxxxxx. Kosongkan bila tidak ada.']

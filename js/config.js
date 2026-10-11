@@ -4,5 +4,5 @@
  * File ini TIDAK disertakan di paket update berikutnya supaya URL-nya tidak tertimpa.
  */
 window.CONFIG = {
-  APPS_SCRIPT_URL: ''
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxk0vnElewXG6HhwuViAmiLFFOdM0eBS6NYXGpOo5rTGbDrM8e75Cxkc2a3eqQfOyO3fg/exec'
 };

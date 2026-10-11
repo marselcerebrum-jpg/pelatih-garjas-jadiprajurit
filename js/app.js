@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11';
+  var VERSI = '2026.10.11-2';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
   var N = window.Nilai, ITEMS = N.ITEMS;
@@ -128,6 +128,7 @@
   function standarNote() {
     if (!CFG) return 'Standar nilai belum termuat dari server.';
     if (CFG.standarResmi) return 'Standar nilai resmi' + (CFG.sumberStandar ? ' (sumber: ' + esc(CFG.sumberStandar) + ')' : '') + '.';
+    if (CFG.sumberStandar) return 'Standar nilai: ' + esc(CFG.sumberStandar) + '. Belum ditandai resmi oleh admin.';
     return 'Tabel nilai masih contoh, belum tabel resmi.';
   }
 
@@ -551,7 +552,7 @@
       return api('config', null, 'GET');
     }).then(function (c) {
       baris(c.standarLengkap ? true : 'warn', 'Tab Standar Nilai', c.standarLengkap ? 'Semua item untuk Pria dan Wanita terbaca.' : 'Ada item yang kurang dari 2 baris, sementara memakai tabel contoh untuk item itu.');
-      baris(c.standarResmi ? true : 'warn', 'Standar nilai resmi', c.standarResmi ? 'Sumber: ' + esc(c.sumberStandar || '(belum diisi)') : 'Masih ditandai contoh. Setelah tabel resmi diisi, ubah standar_resmi menjadi YA di tab Pengaturan.');
+      baris(c.standarResmi ? true : 'warn', 'Standar nilai resmi', c.standarResmi ? 'Sumber: ' + esc(c.sumberStandar || '(belum diisi)') : (c.sumberStandar ? 'Sumber: ' + esc(c.sumberStandar) + '. Ubah standar_resmi menjadi YA di tab Pengaturan setelah dicocokkan dengan juknis.' : 'Masih tabel contoh. Isi tabel resmi lalu ubah standar_resmi menjadi YA di tab Pengaturan.'));
       baris(c.linkGrup ? true : 'warn', 'Link grup WhatsApp', c.linkGrup ? 'Terisi.' : 'Kosong (opsional). Isi link_grup_wa di tab Pengaturan.');
       baris(c.waAdmin ? true : 'warn', 'Nomor WA admin', c.waAdmin ? 'Terisi.' : 'Kosong (opsional). Isi wa_admin di tab Pengaturan.');
       tampil();

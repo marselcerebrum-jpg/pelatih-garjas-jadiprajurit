@@ -2,7 +2,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai garjas, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11** · Versi backend: **2026.10.11**
+Versi web: **2026.10.11-2** · Versi backend: **2026.10.11**
 
 ## Fitur
 
@@ -34,7 +34,7 @@ apps-script/Code.gs ← backend, ditempel di Apps Script spreadsheet
 |---|---|
 | Peserta | Satu baris per casis: data diri, nomor WA, persetujuan data, jumlah catatan, nilai garjas terbaru, tanggal latihan terakhir |
 | Catatan Latihan | Satu baris per sesi latihan |
-| Standar Nilai | Tabel konversi hasil ke nilai, per jenis kelamin dan item. **Ganti dengan tabel resmi.** |
+| Standar Nilai | Tabel konversi hasil ke nilai, per jenis kelamin dan item. Berisi tabel Garjas TNI golongan umur 18–25 tahun; cocokkan dengan juknis seleksi terbaru. |
 | Pengaturan | `standar_resmi`, `sumber_standar`, `target_default`, `link_grup_wa`, `wa_admin` |
 
 Nilai garjas dihitung sebagai (nilai lari 12 menit + rata-rata nilai pull-up/chinning, sit-up, push-up, shuttle run) ÷ 2. Di antara dua baris tabel, nilai dihitung proporsional.
