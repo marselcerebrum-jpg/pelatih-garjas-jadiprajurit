@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-11** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-12** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -89,6 +89,14 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
 
+## Syarat pendaftaran
+
+Saat calon peserta membuka halaman Daftar, pop-up **Syarat pendaftaran SIGAP** muncul otomatis. Peserta wajib mengunggah satu screenshot bukti untuk setiap syarat; tombol Daftar tidak bisa dipakai sebelum semua bukti lengkap, dan server juga menolak pendaftaran tanpa bukti.
+
+- **Mengubah syarat:** edit tab **Syarat** di spreadsheet. Kolom "Syarat" berisi teks yang tampil, "Link" opsional (misalnya link profil atau postingan), dan "Aktif" diisi `Tidak` untuk menyembunyikan syarat. Perubahan berlaku dalam 5 menit tanpa deploy ulang.
+- **Melihat bukti:** kolom **Bukti Syarat** di tab Peserta berisi link file di Google Drive (folder *Bukti Syarat - SIGAP JadiPrajurit*), satu link per syarat. File hanya bisa dibuka akun pemilik dan yang diberi akses.
+- Gambar dikompres di HP sebelum diunggah (maksimal sisi 1280 px). Hanya gambar yang diterima; screenshot yang sama untuk dua syarat ditolak.
+
 ## Pengaman anti salah (poka-yoke)
 
 | Risiko | Pengaman |
@@ -102,6 +110,7 @@ Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nam
 | Tombol simpan ditekan dua kali, atau koneksi putus lalu dikirim ulang | Tombol terkunci saat menyimpan; setiap catatan punya ID unik sehingga server tidak mencatat ganda |
 | Koneksi putus saat menyimpan | Catatan disimpan di HP dan dikirim otomatis saat koneksi kembali |
 | HP masih memakai file lama setelah update | Muncul banner "Muat ulang" |
+| Pendaftaran tanpa bukti syarat, bukti bukan gambar, atau screenshot yang sama dipakai untuk dua syarat | Ditolak di HP dan di server |
 | Paket salah diupload, `config.js` kosong, backend belum di-deploy | Terdeteksi di halaman `?cek=1` |
 | Admin salah mengisi tab Standar Nilai (tidak berurutan, nilai di luar 0–100) | Ditolak server atau ditandai ❌ di `?cek=1`; item yang rusak memakai tabel cadangan |
 | Admin mengubah baris judul spreadsheet | Baris judul dilindungi dengan peringatan |

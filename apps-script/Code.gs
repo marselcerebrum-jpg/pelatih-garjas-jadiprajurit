@@ -12,7 +12,7 @@
  * Version: New version → Deploy. JANGAN pilih "New deployment", karena URL-nya berubah.
  */
 
-var VERSI_BACKEND = '2026.10.11-5';
+var VERSI_BACKEND = '2026.10.11-6';
 var TZ = 'Asia/Jakarta';
 
 var TAB = {
@@ -20,18 +20,23 @@ var TAB = {
   CATATAN: 'Catatan Latihan',
   STANDAR: 'Standar Nilai',
   PENGATURAN: 'Pengaturan',
-  KONTAK: 'Simpan Kontak'
+  KONTAK: 'Simpan Kontak',
+  SYARAT: 'Syarat'
 };
+var NAMA_FOLDER_BUKTI = 'Bukti Syarat - SIGAP JadiPrajurit';
+var MAX_BUKTI_BYTES = 5 * 1024 * 1024;
+var MIME_BUKTI = ['image/jpeg', 'image/png', 'image/webp'];
 
 var KOLOM_PESERTA = ['ID Peserta', 'Tanggal Daftar', 'Nama Lengkap', 'Email JadiPrajurit', 'No. WhatsApp',
   'Jenis Kelamin', 'Usia', 'Tinggi (cm)', 'Berat (kg)', 'Domisili', 'Matra', 'Jalur', 'Tanggal Tes',
   'Target Nilai', 'Persetujuan Data', 'Terakhir Diperbarui', 'Jumlah Catatan', 'Nilai Jasmani Terbaru',
-  'Terakhir Latihan', 'Disimpan Admin', 'Simpan Nomor Admin', 'Tampil di Peringkat', 'Kode Bagikan', 'Diajak Oleh'];
+  'Terakhir Latihan', 'Disimpan Admin', 'Simpan Nomor Admin', 'Tampil di Peringkat', 'Kode Bagikan', 'Diajak Oleh', 'Bukti Syarat'];
 var KOLOM_CATATAN = ['ID Catatan', 'Waktu Input', 'Email JadiPrajurit', 'Nama Lengkap', 'Tanggal',
   'Lari 12 Menit (m)', 'Pull-up/Chinning (kali)', 'Sit-up (kali)', 'Push-up (kali)', 'Shuttle Run (detik)',
   'Simulasi', 'Nilai Jasmani', 'Catatan'];
 var KOLOM_STANDAR = ['Jenis Kelamin', 'Item', 'Hasil', 'Nilai'];
 var KOLOM_PENGATURAN = ['Kunci', 'Nilai', 'Keterangan'];
+var KOLOM_SYARAT = ['No', 'Syarat', 'Link (opsional)', 'Aktif (Ya/Tidak)'];
 var KOLOM_KONTAK = ['Waktu', 'ID Peserta', 'Nama Kontak', 'No. WhatsApp', 'Email JadiPrajurit', 'Status'];
 
 var ITEM_KEYS = ['lari', 'pullup', 'situp', 'pushup', 'shuttle'];
@@ -122,7 +127,18 @@ function setup() {
   pengaturan.getRange('C:C').setWrap(true);
 
   // Hapus Sheet1 bawaan bila masih kosong
-  var kontak = siapkanTab_(ss, TAB.KONTAK, KOLOM_KONTAK, 4);
+  var syarat = siapkanTab_(ss, TAB.SYARAT, KOLOM_SYARAT, 4);
+  if (syarat.getLastRow() < 2) {
+    syarat.getRange(2, 1, 2, 4).setValues([
+      [1, 'Follow Instagram @jadiprajurit.id', 'https://www.instagram.com/jadiprajurit.id/', 'Ya'],
+      [2, 'Like, save, repost, dan tag 3 teman kamu di kolom komentar postingan JadiPrajurit', '', 'Ya']
+    ]);
+  }
+  syarat.setColumnWidth(2, 460); syarat.setColumnWidth(3, 300);
+  syarat.getRange('D2:D').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['Ya', 'Tidak'], true).setAllowInvalid(false).build());
+  folderBukti_();
+
+  var kontak = siapkanTab_(ss, TAB.KONTAK, KOLOM_KONTAK, 5);
   kontak.getRange('B:F').setNumberFormat('@');
   kontak.setColumnWidth(6, 320);
 
@@ -170,7 +186,7 @@ function doPost(e) {
   try { body = JSON.parse(e.postData.contents); } catch (x) { return json_({ ok: false, kode: 'data_tidak_valid' }); }
   try {
     switch (body.action) {
-      case 'daftar': return json_(daftar_(body.profil || {}));
+      case 'daftar': return json_(daftar_(body.profil || {}, body.bukti));
       case 'masuk': return json_(masuk_(body.email));
       case 'simpanProfil': return json_(simpanProfil_(body.email, body.profil || {}));
       case 'tambahCatatan': return json_(tambahCatatan_(body.email, body.catatan || {}, body.ringkasan || {}));
@@ -221,23 +237,29 @@ function ambilConfig_() {
     targetDefault: Number(set.target_default) > 0 ? Number(set.target_default) : 70,
     linkGrup: /^https:\/\//.test(set.link_grup_wa || '') ? set.link_grup_wa : '',
     waAdmin: /^62\d{8,13}$/.test(String(set.wa_admin || '').replace(/\D/g, '')) ? String(set.wa_admin).replace(/\D/g, '') : '',
-    namaAdmin: String(set.nama_admin || 'Admin JadiPrajurit').slice(0, 60)
+    namaAdmin: String(set.nama_admin || 'Admin JadiPrajurit').slice(0, 60),
+    syarat: bacaSyarat_(ss)
   };
 }
 
-function daftar_(p) {
+function daftar_(p, bukti) {
   var v = validasiProfil_(p, true);
+  var syarat = bacaSyarat_(SpreadsheetApp.getActiveSpreadsheet());
+  var blob = validasiBukti_(bukti, syarat.length);
+  var sh0 = tab_(TAB.PESERTA);
+  if (cariBaris_(sh0, 4, v.email) > 0) throw { kode: 'email_terdaftar' };
+  var id = 'P' + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase();
+  var linkBukti = simpanBukti_(id, v.name, blob);
   return denganKunci_(function () {
     var sh = tab_(TAB.PESERTA);
     if (cariBaris_(sh, 4, v.email) > 0) throw { kode: 'email_terdaftar' };
-    var id = 'P' + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase();
     var waktu = sekarang_();
     var diajak = '';
     var ref = String(p.ref || '').toUpperCase();
     if (/^[A-Z0-9]{6,12}$/.test(ref)) { var rb = cariBaris_(sh, 23, ref); if (rb > 0) diajak = String(sh.getRange(rb, 1).getValue()); }
     sh.appendRow([id, waktu.slice(0, 10), teks_(v.name, 80), v.email, '+' + v.wa, v.gender, v.age, v.height, v.weight,
       teks_(v.domisili, 60), v.matra, v.jalur, v.testDate, v.target, 'Ya (' + waktu.slice(0, 10) + ')', waktu, 0, '', '',
-      'Ya', '', 'Ya', kodeBaru_(sh), diajak]);
+      'Ya', '', 'Ya', kodeBaru_(sh), diajak, linkBukti]);
     antreKontak_(id, v.name, v.wa, v.email);
     hapusCache_();
     return { ok: true, profil: profilPublik_(sh, sh.getLastRow()), catatan: [] };
@@ -309,6 +331,48 @@ function hapusCatatan_(email, id, ringkasan) {
     hapusCache_();
     return { ok: true };
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Syarat pendaftaran dan bukti                                        */
+/* ------------------------------------------------------------------ */
+
+function bacaSyarat_(ss) {
+  var sh = ss.getSheetByName(TAB.SYARAT);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 4).getDisplayValues()
+    .filter(function (r) { return String(r[1]).trim() && String(r[3]).trim().toLowerCase() !== 'tidak'; })
+    .map(function (r) { var link = String(r[2]).trim(); return { teks: String(r[1]).trim().slice(0, 300), link: /^https?:\/\//.test(link) ? link : '' }; });
+}
+
+function validasiBukti_(bukti, perlu) {
+  if (!perlu) return [];
+  if (!Array.isArray(bukti) || bukti.length !== perlu) throw { kode: 'bukti_kurang', pesan: String(perlu) };
+  return bukti.map(function (b, i) {
+    if (!b || MIME_BUKTI.indexOf(String(b.mime)) < 0 || typeof b.data !== 'string' || !b.data) throw { kode: 'bukti_tidak_valid', pesan: 'syarat ' + (i + 1) };
+    var bytes;
+    try { bytes = Utilities.base64Decode(b.data); } catch (e) { throw { kode: 'bukti_tidak_valid', pesan: 'syarat ' + (i + 1) }; }
+    if (bytes.length > MAX_BUKTI_BYTES) throw { kode: 'bukti_tidak_valid', pesan: 'syarat ' + (i + 1) + ' terlalu besar' };
+    return { bytes: bytes, mime: String(b.mime) };
+  });
+}
+
+function simpanBukti_(id, nama, blobs) {
+  if (!blobs.length) return '';
+  var folder = folderBukti_(), ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+  return blobs.map(function (b, i) {
+    var f = folder.createFile(Utilities.newBlob(b.bytes, b.mime, id + ' - ' + String(nama).slice(0, 40) + ' - syarat ' + (i + 1) + '.' + ext[b.mime]));
+    return f.getUrl();
+  }).join('\n');
+}
+
+function folderBukti_() {
+  var props = PropertiesService.getScriptProperties();
+  var fid = props.getProperty('FOLDER_BUKTI');
+  if (fid) { try { return DriveApp.getFolderById(fid); } catch (e) { } }
+  var f = DriveApp.createFolder(NAMA_FOLDER_BUKTI);
+  props.setProperty('FOLDER_BUKTI', f.getId());
+  return f;
 }
 
 /* ------------------------------------------------------------------ */

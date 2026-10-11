@@ -4,8 +4,8 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-11';
-  var BACKEND_DIHARAPKAN = '2026.10.11-5';
+  var VERSI = '2026.10.11-12';
+  var BACKEND_DIHARAPKAN = '2026.10.11-6';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
   var N = window.Nilai, ITEMS = N.ITEMS;
@@ -63,6 +63,8 @@
     if (k === 'tidak_ditemukan') return 'Email belum terdaftar. Periksa penulisannya atau daftar terlebih dahulu.';
     if (k === 'data_tidak_valid') return 'Data belum sesuai' + (e.pesan ? ' (' + e.pesan + ')' : '') + '. Periksa lagi isiannya.';
     if (k === 'sibuk') return 'Server sedang sibuk. Coba lagi beberapa detik lagi.';
+    if (k === 'bukti_kurang') return 'Syarat pendaftaran baru saja berubah. Muat ulang halaman, lalu unggah bukti untuk setiap syarat.';
+    if (k === 'bukti_tidak_valid') return 'Bukti ' + (e.pesan || 'syarat') + ' tidak bisa dibaca. Unggah ulang screenshot-nya.';
     return 'Terjadi gangguan di server. Coba lagi sebentar.';
   }
 
@@ -241,6 +243,64 @@
   window.addEventListener('online', function () { kirimAntre(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) kirimAntre(); });
 
+  /* ---------------- Syarat pendaftaran (pop-up bukti) ---------------- */
+  var bukti = [], modalSyarat = false, syaratDibuka = false, syaratErr = '';
+  function daftarSyarat() { return CFG && Array.isArray(CFG.syarat) ? CFG.syarat : null; }
+  function buktiLengkap() { var sy = daftarSyarat(); return !sy || sy.every(function (_, i) { return !!bukti[i]; }); }
+  function kompres(file) {
+    return new Promise(function (res, rej) {
+      if (!file || !/^image\//.test(file.type)) { rej(new Error('File harus berupa gambar, misalnya screenshot.')); return; }
+      if (file.size > 15 * 1024 * 1024) { rej(new Error('Ukuran gambar maksimal 15 MB.')); return; }
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var max = 1280, sk = Math.min(1, max / Math.max(img.width, img.height));
+        var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * sk)); c.height = Math.max(1, Math.round(img.height * sk));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        var d = c.toDataURL('image/jpeg', 0.8);
+        res({ preview: d, mime: 'image/jpeg', data: d.split(',')[1] });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('Gambar tidak bisa dibaca. Coba ambil screenshot lagi.')); };
+      img.src = url;
+    });
+  }
+  function renderModal() {
+    var el = $('#modal'); if (!el) return;
+    var sy = daftarSyarat();
+    if (!modalSyarat || !sy) { el.innerHTML = ''; document.body.style.overflow = ''; return; }
+    var n = bukti.filter(Boolean).length, lengkap = buktiLengkap();
+    var h = '<div class="modal-bg"><div class="modal card stack" role="dialog" aria-modal="true" aria-labelledby="syarat-judul">';
+    h += '<div class="row" style="align-items:flex-start"><div><h2 id="syarat-judul">Syarat pendaftaran SIGAP</h2><p class="small muted" style="margin:4px 0 0">Penuhi syarat berikut, lalu unggah satu screenshot bukti untuk setiap syarat.</p></div><button type="button" class="btn ghost small" id="syarat-tutup" aria-label="Tutup" style="padding:0 12px">✕</button></div>';
+    h += '<ol class="syarat-list">';
+    sy.forEach(function (x, i) {
+      var b = bukti[i];
+      h += '<li><div style="font-weight:600">' + esc(x.teks) + '</div>' + (x.link ? '<a class="inline small" href="' + esc(x.link) + '" target="_blank" rel="noopener">Buka tautan</a>' : '');
+      h += '<label class="drop' + (b ? ' done' : '') + '"><input type="file" accept="image/*" data-bukti="' + i + '"><span class="thumb">' + (b ? '<img src="' + b.preview + '" alt="Bukti syarat ' + (i + 1) + '">' : '+') + '</span><span>' + (b ? 'Bukti terunggah. Ketuk untuk mengganti.' : 'Unggah screenshot bukti') + '</span></label></li>';
+    });
+    h += '</ol><div id="syarat-err" class="small warn" role="alert">' + esc(syaratErr) + '</div>';
+    h += '<div class="small" style="font-weight:700;color:' + (lengkap ? 'var(--good)' : 'var(--muted)') + '">Bukti terunggah: ' + n + ' dari ' + sy.length + '</div>';
+    h += '<button class="btn" id="syarat-lanjut"' + (lengkap ? '' : ' disabled') + '>' + (lengkap ? 'Lanjut isi data diri' : 'Lengkapi semua bukti dulu') + '</button></div></div>';
+    el.innerHTML = h; document.body.style.overflow = 'hidden';
+  }
+  function bukaSyarat() { modalSyarat = true; syaratDibuka = true; syaratErr = ''; renderModal(); setTimeout(function () { var f = $('#syarat-tutup'); if (f) f.focus(); }, 30); }
+  function tutupSyarat() { modalSyarat = false; renderModal(); render(); }
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t || t.dataset == null || t.dataset.bukti == null || !t.files || !t.files[0]) return;
+    var i = +t.dataset.bukti; syaratErr = '';
+    kompres(t.files[0]).then(function (b) {
+      var kembar = bukti.some(function (x, j) { return x && j !== i && x.data === b.data; });
+      if (kembar) { syaratErr = 'Screenshot ini sama dengan bukti syarat lain. Unggah bukti yang sesuai untuk setiap syarat.'; renderModal(); return; }
+      bukti[i] = b; renderModal();
+    }, function (err) { syaratErr = err.message; renderModal(); });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modalSyarat) tutupSyarat(); });
+  function statusSyarat() {
+    var sy = daftarSyarat();
+    if (!sy) return '<div class="note small">Memuat syarat pendaftaran…</div>';
+    if (!sy.length) return '';
+    var n = bukti.filter(Boolean).length, lengkap = buktiLengkap();
+    return '<div class="note ' + (lengkap ? 'goodbox' : 'warnbox') + ' small" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span>' + (lengkap ? 'Bukti syarat lengkap (' + n + '/' + sy.length + ')' : 'Syarat pendaftaran: ' + n + ' dari ' + sy.length + ' bukti terunggah') + '</span><button type="button" class="btn ghost small" id="syarat-buka">' + (lengkap ? 'Ubah' : 'Unggah bukti') + '</button></div>';
+  }
+
   /* ---------------- Pendaftaran & masuk ---------------- */
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
   function normEmail(v) { return String(v || '').trim().toLowerCase(); }
@@ -287,7 +347,7 @@
   function brand() { return '<div class="brand"><img class="logo-terang" src="assets/logo-jadiprajurit.png" alt="JadiPrajurit" height="34"><img class="logo-gelap" src="assets/logo-jadiprajurit-terang.png" alt="JadiPrajurit" height="34"><span>SIGAP</span></div>'; }
   function viewDaftar() {
     var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Daftar untuk mulai</h1><div class="sub">Isi data diri sekali saja. Kolom bertanda * wajib diisi.</div></div></div>';
-    h += '<div class="card stack">' + profileForm(draftDaftar, true);
+    h += '<div class="card stack">' + statusSyarat() + profileForm(draftDaftar, true);
     h += '<div id="auth-msg" class="small warn" role="alert">' + esc(authMsg) + '</div>';
     h += '<button class="btn" id="do-register"' + (busy ? ' disabled' : '') + '>' + (busy ? '<span class="spin" aria-hidden="true"></span> Mendaftarkan…' : 'Daftar &amp; mulai') + '</button></div>';
     h += '<p class="small muted" style="text-align:center;margin:0">Sudah pernah daftar? <button type="button" class="linkbtn" style="color:var(--good)" id="go-login">Masuk dengan email</button></p>';
@@ -308,6 +368,8 @@
     var r = readProfileForm(true);
     draftDaftar = r.data;
     if (r.err.length) { setAuthMsg('Lengkapi: ' + r.err.join(', ') + '.'); return; }
+    if (!daftarSyarat()) { setAuthMsg('Syarat pendaftaran belum termuat. Periksa koneksi internet lalu muat ulang halaman.'); return; }
+    if (!buktiLengkap()) { setAuthMsg('Unggah dulu bukti untuk setiap syarat pendaftaran.'); bukaSyarat(); return; }
     var saran = saranEmail(r.data.email);
     if (saran && confirm('Apakah maksudmu ' + saran + '?\n\nTekan OK untuk memakai ' + saran + ', atau Batal untuk tetap memakai ' + r.data.email + '.')) { r.data.email = saran; var pe = $('#p-email'); if (pe) pe.value = saran; draftDaftar.email = saran; }
     if (!confirm('Periksa data utamamu sebelum daftar:\n\nEmail (untuk masuk): ' + r.data.email + '\nWhatsApp: +' + r.data.wa + '\nJenis kelamin: ' + r.data.gender + '\nUsia: ' + r.data.age + ' tahun\nJalur: ' + r.data.jalur + ' TNI ' + r.data.matra + '\n\nJenis kelamin dan usia menentukan tabel nilai. Sudah benar?')) { setAuthMsg('Silakan periksa lagi datamu, lalu tekan Daftar.'); return; }
@@ -315,8 +377,9 @@
     busy = true; authMsg = ''; render();
     var ref = lsGet(LS_REF);
     if (ref) r.data.ref = ref;
-    api('daftar', { profil: r.data }).then(function (j) {
-      lsSet(LS_REF, null);
+    var kirimBukti = (daftarSyarat() || []).map(function (_, i) { return { mime: bukti[i].mime, data: bukti[i].data }; });
+    api('daftar', { profil: r.data, bukti: kirimBukti }).then(function (j) {
+      lsSet(LS_REF, null); bukti = [];
       busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; simpanSesi();
       draftDaftar = {}; tab = 'beranda'; pendingAutoOpen = true; render(); toast('Pendaftaran berhasil!');
     }, function (e) {
@@ -913,6 +976,7 @@
         });
       });
       baris(urut.length ? false : true, 'Urutan tabel nilai', urut.length ? 'Tidak berurutan, periksa baris: ' + esc(urut.join(', ')) + '. Hasil lebih baik harus bernilai lebih tinggi (shuttle run: waktu lebih cepat bernilai lebih tinggi).' : 'Semua tabel berurutan dengan benar.');
+      baris(Array.isArray(c.syarat) ? (c.syarat.length ? true : 'warn') : false, 'Syarat pendaftaran (tab Syarat)', Array.isArray(c.syarat) ? (c.syarat.length ? c.syarat.length + ' syarat aktif, wajib diunggah buktinya saat daftar.' : 'Tidak ada syarat aktif, pendaftaran tanpa bukti.') : 'Backend belum mengirim data syarat. Deploy versi backend terbaru.');
       baris(c.standarLengkap ? true : 'warn', 'Tab Standar Nilai', c.standarLengkap ? 'Semua item untuk Pria dan Wanita terbaca.' : 'Ada item yang kurang dari 2 baris, sementara memakai tabel contoh untuk item itu.');
       baris(c.standarResmi ? true : 'warn', 'Standar nilai resmi', c.standarResmi ? 'Sumber: ' + esc(c.sumberStandar || '(belum diisi)') : (c.sumberStandar ? 'Sumber: ' + esc(c.sumberStandar) + '. Ubah standar_resmi menjadi YA di tab Pengaturan setelah dicocokkan dengan juknis.' : 'Masih tabel contoh. Isi tabel resmi lalu ubah standar_resmi menjadi YA di tab Pengaturan.'));
       baris(c.linkGrup ? true : 'warn', 'Link grup WhatsApp', c.linkGrup ? 'Terisi.' : 'Kosong (opsional). Isi link_grup_wa di tab Pengaturan.');
@@ -937,6 +1001,7 @@
     nav.style.display = gate ? 'none' : '';
     if (!gate) renderNav();
     if (!gate && tab === 'beranda' && S.catatan.length && !LB.data && !LB.loading && !LB.err) muatLB(false).catch(function () { });
+    if (!landing.aktif && !S.email && authView === 'daftar' && !syaratDibuka && daftarSyarat() && daftarSyarat().length) bukaSyarat();
     if (perluSimpanAdmin() && pendingAutoOpen) { pendingAutoOpen = false; setTimeout(bukaKartuAdmin, 400); }
   }
   document.addEventListener('click', function (e) {
@@ -960,6 +1025,9 @@
       case 'save-profile': if (!busy) saveProfile(); break;
       case 'logout': logout(); break;
       case 'confirm-admin': if (!busy) konfirmasiAdmin(); break;
+      case 'syarat-buka': bukaSyarat(); break;
+      case 'syarat-tutup': tutupSyarat(); break;
+      case 'syarat-lanjut': if (buktiLengkap()) { tutupSyarat(); var pn = $('#p-name'); if (pn) pn.focus(); } break;
       case 'lb-refresh': muatLB(true).catch(function () { }); render(); break;
       case 'share-native': bagikanNative(); break;
       case 'share-copy':
