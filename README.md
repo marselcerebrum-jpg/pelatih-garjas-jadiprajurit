@@ -2,7 +2,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai garjas, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-2** · Versi backend: **2026.10.11**
+Versi web: **2026.10.11-4** · Versi backend: **2026.10.11-4**
 
 ## Fitur
 
@@ -35,7 +35,8 @@ apps-script/Code.gs ← backend, ditempel di Apps Script spreadsheet
 | Peserta | Satu baris per casis: data diri, nomor WA, persetujuan data, jumlah catatan, nilai garjas terbaru, tanggal latihan terakhir |
 | Catatan Latihan | Satu baris per sesi latihan |
 | Standar Nilai | Tabel konversi hasil ke nilai, per jenis kelamin dan item. Berisi tabel Garjas TNI golongan umur 18–25 tahun; cocokkan dengan juknis seleksi terbaru. |
-| Pengaturan | `standar_resmi`, `sumber_standar`, `target_default`, `link_grup_wa`, `wa_admin` |
+| Pengaturan | `standar_resmi`, `sumber_standar`, `target_default`, `link_grup_wa`, `wa_admin`, `nama_admin`, `label_kontak` |
+| Simpan Kontak | Daftar nomor casis untuk disimpan admin secara bulk lewat Markaz, beserta statusnya |
 
 Nilai garjas dihitung sebagai (nilai lari 12 menit + rata-rata nilai pull-up/chinning, sit-up, push-up, shuttle run) ÷ 2. Di antara dua baris tabel, nilai dihitung proporsional.
 
@@ -67,6 +68,14 @@ Buka `https://<nama-project>.vercel.app/?cek=1`. Semua baris harus ✅. Tanda �
 2. Tab **Pengaturan**: ubah `standar_resmi` menjadi `YA`, isi `sumber_standar`, dan bila ada, `link_grup_wa` serta `wa_admin` (format `628xxxxxxxxxx`).
 
 Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulang.
+
+## Kontak WhatsApp
+
+**Nomor casis disimpan admin.** Persetujuan ini sudah menjadi bagian dari centang wajib saat daftar. Setiap pendaftar otomatis masuk tab **Simpan Kontak** dengan nama seperti `Rizky Aditya Casis JadiPrajurit` dan status `Belum disimpan admin`. Admin menyimpannya secara bulk lewat Markaz, lalu memilih menu **Pelatih Garjas → Tandai semua sudah disimpan**. Menu **Ekspor kontak belum disimpan ke vCard** tersedia sebagai cadangan.
+
+**Casis wajib menyimpan nomor admin.** Setelah daftar, kartu kontak admin langsung terbuka otomatis di HP casis. Casis tidak bisa masuk ke aplikasi sebelum mencentang "Saya sudah menyimpan nomor admin". Konfirmasinya tercatat di kolom **Simpan Nomor Admin** pada tab Peserta. Casis yang mendaftar sebelum fitur ini juga akan diminta langkah yang sama saat membuka aplikasi.
+
+Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
 
 ## Cara update
 

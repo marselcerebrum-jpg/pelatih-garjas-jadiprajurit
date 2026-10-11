@@ -4,7 +4,8 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-2';
+  var VERSI = '2026.10.11-4';
+  var BACKEND_DIHARAPKAN = '2026.10.11-4';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
   var N = window.Nilai, ITEMS = N.ITEMS;
@@ -166,7 +167,7 @@
     h += '<label class="f">Domisili (kota/kabupaten)<input class="in" id="p-domisili" maxlength="60" value="' + esc(p.domisili) + '" placeholder="Misal: Kota Bandung"></label>';
     h += '<div class="grid2"><label class="f">Matra *<select class="in" id="p-matra">' + opt(['AD', 'AL', 'AU'], p.matra || 'AD') + '</select></label><label class="f">Jalur *<select class="in" id="p-jalur">' + opt(['Tamtama', 'Bintara', 'Akmil', 'PA PK'], p.jalur || 'Bintara') + '</select></label></div>';
     h += '<div class="grid2"><label class="f">Tanggal tes jasmani<input class="in" type="date" id="p-test" value="' + esc(p.testDate) + '"></label><label class="f">Target nilai<input class="in" type="number" inputmode="numeric" id="p-target" min="1" max="100" value="' + esc(p.target || (CFG && CFG.targetDefault) || 70) + '"></label></div>';
-    if (isNew) h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="p-consent" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"> <span>Saya setuju data diri dan hasil latihan saya disimpan dan dikelola tim JadiPrajurit untuk keperluan pendampingan latihan.</span></label>';
+    if (isNew) h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="p-consent" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"> <span>Saya setuju data diri dan hasil latihan saya disimpan dan dikelola tim JadiPrajurit, serta nomor WhatsApp saya disimpan admin JadiPrajurit untuk info dan pendampingan latihan.</span></label>';
     return h;
   }
   function readProfileForm(isNew) {
@@ -216,7 +217,7 @@
     busy = true; authMsg = ''; render();
     api('daftar', { profil: r.data }).then(function (j) {
       busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; simpanSesi();
-      draftDaftar = {}; tab = 'beranda'; render(); toast('Pendaftaran berhasil. Selamat berlatih!');
+      draftDaftar = {}; tab = 'beranda'; pendingAutoOpen = true; render(); toast('Pendaftaran berhasil!');
     }, function (e) {
       busy = false; authMsg = pesanError(e);
       if (e && e.kode === 'email_terdaftar') { authView = 'login'; draftLogin = r.data.email; }
@@ -241,7 +242,7 @@
     if (!S.catatan.length) {
       h += '<div class="card stack"><h2>Mulai dengan tes awal</h2><p class="small muted" style="margin:0">Lakukan dan catat lari 12 menit, ' + esc(itemLabel(ITEMS[1]).toLowerCase()) + ', sit-up, push-up, dan shuttle run sebagai titik mulai. Gunakan stopwatch di menu Catat supaya waktunya sama seperti tes.</p><button class="btn" data-go="catat">Catat tes awal</button></div>';
       if (!p.testDate) h += '<div class="card stack"><p class="small muted" style="margin:0">Isi tanggal tes jasmani di menu Profil supaya hitung mundur dan program latihan menyesuaikan.</p><button class="btn ghost" data-go="profil">Isi tanggal tes</button></div>';
-      return h + grupCard();
+      return h + adminCard() + grupCard();
     }
     var g = cur.garjas, gap = g != null ? Math.round((tg - g) * 10) / 10 : null;
     var weak = ITEMS.filter(function (it) { return cur.scores[it.key] != null && cur.scores[it.key] < tg; }).sort(function (a, b) { return cur.scores[a.key] - cur.scores[b.key]; });
@@ -263,7 +264,55 @@
       h += '<div class="bar" aria-hidden="true"><i style="width:' + (s || 0) + '%;background:' + (ok ? 'var(--good-bar)' : 'var(--warn-bar)') + '"></i><b style="left:' + Math.min(100, tg) + '%"></b></div></div>';
     });
     h += '<p class="tiny muted" style="margin:8px 0 0">' + standarNote() + '</p></div>';
-    return h + grupCard();
+    return h + grupCard() + adminCard();
+  }
+  function vcardAdmin() {
+    var n = String((CFG && CFG.namaAdmin) || 'Admin JadiPrajurit').replace(/[\r\n;,]/g, ' ');
+    return 'data:text/vcard;charset=utf-8,' + encodeURIComponent('BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + n + '\r\nN:' + n + ';;;;\r\nTEL;TYPE=CELL:+' + CFG.waAdmin + '\r\nEND:VCARD\r\n');
+  }
+  function adminCard(judul) {
+    if (!CFG || !CFG.waAdmin) return '';
+    var p = S.profil || {}, nama = (CFG.namaAdmin || 'Admin JadiPrajurit');
+    var h = '<div class="card stack"><h2>' + esc(judul || 'Kontak admin') + '</h2>';
+    h += '<p class="small muted" style="margin:0">Hubungi ' + esc(nama) + ' untuk pertanyaan seputar latihan dan seleksi. Ganti HP? Simpan ulang nomornya supaya Status WhatsApp admin tetap terlihat.</p>';
+    h += '<div class="btns"><a class="btn ghost" href="' + vcardAdmin() + '" download="' + esc(nama) + '.vcf">Simpan ulang nomor admin</a>';
+    h += '<a class="btn ghost" href="https://wa.me/' + esc(CFG.waAdmin) + '?text=' + encodeURIComponent('Halo admin JadiPrajurit, saya ' + (p.name || '') + ' (' + (p.email || '') + ') sudah daftar Pelatih Garjas.') + '" target="_blank" rel="noopener">Chat admin</a></div>';
+    return h + '</div>';
+  }
+  /* Langkah wajib: simpan nomor admin */
+  var kartu = { dibuka: false };
+  var pendingAutoOpen = false;
+  function fmtNoWa(d) { d = String(d || ''); return '+' + d.slice(0, 2) + ' ' + d.slice(2, 5) + '-' + d.slice(5, 9) + '-' + d.slice(9); }
+  function perluSimpanAdmin() { return !!(S.email && S.profil && !S.profil.kontakAdmin && CFG && CFG.waAdmin); }
+  function viewSimpanAdmin() {
+    var nama = CFG.namaAdmin || 'Admin JadiPrajurit';
+    var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Satu langkah lagi: simpan nomor admin</h1><div class="sub">Wajib sebelum mulai, supaya kamu mendapat info seleksi, jadwal, dan Status WhatsApp dari admin.</div></div></div>';
+    h += '<div class="card stack">';
+    h += '<div class="row"><div><div class="small muted">Nama kontak</div><div style="font-weight:700">' + esc(nama) + '</div></div><div style="text-align:right"><div class="small muted">Nomor</div><div style="font-weight:700">' + esc(fmtNoWa(CFG.waAdmin)) + '</div></div></div>';
+    h += '<a class="btn" id="save-admin" href="' + vcardAdmin() + '" download="' + esc(nama) + '.vcf">' + (kartu.dibuka ? 'Buka lagi kartu kontak' : 'Simpan nomor admin') + '</a>';
+    h += '<p class="small muted" style="margin:0">Kartu kontak akan terbuka di HP-mu. Ketuk <b>Simpan</b> atau <b>Tambahkan ke kontak</b>. Kalau tidak terbuka, simpan manual nomor di atas dengan nama ' + esc(nama) + '.</p>';
+    h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="admin-saved" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"> <span>Saya sudah menyimpan nomor ' + esc(nama) + ' di kontak HP saya.</span></label>';
+    h += '<div id="auth-msg" class="small warn" role="alert">' + esc(authMsg) + '</div>';
+    h += '<button class="btn" id="confirm-admin"' + (busy ? ' disabled' : '') + '>' + (busy ? '<span class="spin" aria-hidden="true"></span> Menyimpan…' : 'Lanjut ke aplikasi') + '</button></div>';
+    return h;
+  }
+  function bukaKartuAdmin() {
+    try {
+      var nama = CFG.namaAdmin || 'Admin JadiPrajurit';
+      var raw = decodeURIComponent(vcardAdmin().split(',').slice(1).join(','));
+      var url = URL.createObjectURL(new Blob([raw], { type: 'text/vcard' }));
+      var a = document.createElement('a'); a.href = url; a.download = nama + '.vcf';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+      kartu.dibuka = true;
+    } catch (e) { }
+  }
+  function konfirmasiAdmin() {
+    if (!$('#admin-saved').checked) { setAuthMsg('Simpan nomor admin dulu, lalu centang konfirmasinya.'); return; }
+    busy = true; authMsg = ''; render();
+    api('konfirmasiKontak', { email: S.email }).then(function (j) {
+      busy = false; S.profil = j.profil; S.profil.kontakAdmin = true; simpanSesi(); tab = 'beranda'; render(); toast('Terima kasih! Selamat berlatih.');
+    }, function (e) { busy = false; authMsg = pesanError(e); render(); });
   }
   function grupCard() {
     if (!CFG || !CFG.linkGrup) return '';
@@ -516,7 +565,7 @@
     });
     h += '</div></details></div>';
     h += grupCard();
-    if (CFG && CFG.waAdmin) h += '<div class="card stack"><h2>Butuh bantuan?</h2><a class="btn ghost" href="https://wa.me/' + esc(CFG.waAdmin) + '?text=' + encodeURIComponent('Halo admin JadiPrajurit, saya ' + p.name + ' (' + p.email + ') butuh bantuan soal Pelatih Garjas.') + '" target="_blank" rel="noopener">Hubungi admin lewat WhatsApp</a></div>';
+    h += adminCard('Butuh bantuan?');
     h += '<div class="card stack"><h2>Akun</h2><p class="small muted" style="margin:0">Masuk sebagai ' + esc(p.email) + '.</p><button class="btn ghost" id="logout">Keluar</button></div>';
     return h;
   }
@@ -549,6 +598,7 @@
     if (!urlOk) { rows[idx] = ''; baris(false, 'Backend Google terhubung', 'Dilewati karena URL belum benar.'); tampil(); return; }
     api('ping', null, 'GET').then(function (j) {
       rows[idx] = ''; baris(true, 'Backend Google terhubung', 'Versi backend ' + esc(j.versi) + '.');
+      baris(j.versi === BACKEND_DIHARAPKAN ? true : 'warn', 'Versi backend ' + BACKEND_DIHARAPKAN, j.versi === BACKEND_DIHARAPKAN ? 'Sesuai dengan versi web.' : 'Backend masih versi ' + esc(j.versi) + '. Tempel Code.gs terbaru, jalankan setup, lalu Deploy → Manage deployments → pensil → New version.');
       return api('config', null, 'GET');
     }).then(function (c) {
       baris(c.standarLengkap ? true : 'warn', 'Tab Standar Nilai', c.standarLengkap ? 'Semua item untuk Pria dan Wanita terbaca.' : 'Ada item yang kurang dari 2 baris, sementara memakai tabel contoh untuk item itu.');
@@ -568,10 +618,12 @@
     if (tab === 'catat') readDraftFromForm();
     var nav = document.querySelector('nav.tabs'), v, gate = !S.email;
     if (gate) v = authView === 'login' ? viewLogin() : viewDaftar();
+    else if (perluSimpanAdmin()) { gate = true; v = viewSimpanAdmin(); }
     else v = tab === 'catat' ? viewCatat() : tab === 'progres' ? viewProgres() : tab === 'program' ? viewProgram() : tab === 'profil' ? viewProfil() : viewBeranda();
     $('#app').innerHTML = '<div class="stack">' + v + '</div>';
     nav.style.display = gate ? 'none' : '';
     if (!gate) renderNav();
+    if (perluSimpanAdmin() && pendingAutoOpen) { pendingAutoOpen = false; setTimeout(bukaKartuAdmin, 400); }
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest('button,a'); if (!b) return;
@@ -591,6 +643,8 @@
       case 'clear-log': draft = { date: todayStr(), items: {}, sim: false, note: '' }; tab = 'catat'; var d = $('#f-date'); if (d) d.value = ''; ITEMS.forEach(function (it) { var el = $('#f-' + it.key); if (el) el.value = ''; }); render(); break;
       case 'save-profile': if (!busy) saveProfile(); break;
       case 'logout': logout(); break;
+      case 'confirm-admin': if (!busy) konfirmasiAdmin(); break;
+      case 'save-admin': kartu.dibuka = true; break;
       case 'copy-week': copyText(weekSummary().full); break;
     }
   });

@@ -12,25 +12,27 @@
  * Version: New version → Deploy. JANGAN pilih "New deployment", karena URL-nya berubah.
  */
 
-var VERSI_BACKEND = '2026.10.11';
+var VERSI_BACKEND = '2026.10.11-4';
 var TZ = 'Asia/Jakarta';
 
 var TAB = {
   PESERTA: 'Peserta',
   CATATAN: 'Catatan Latihan',
   STANDAR: 'Standar Nilai',
-  PENGATURAN: 'Pengaturan'
+  PENGATURAN: 'Pengaturan',
+  KONTAK: 'Simpan Kontak'
 };
 
 var KOLOM_PESERTA = ['ID Peserta', 'Tanggal Daftar', 'Nama Lengkap', 'Email JadiPrajurit', 'No. WhatsApp',
   'Jenis Kelamin', 'Usia', 'Tinggi (cm)', 'Berat (kg)', 'Domisili', 'Matra', 'Jalur', 'Tanggal Tes',
   'Target Nilai', 'Persetujuan Data', 'Terakhir Diperbarui', 'Jumlah Catatan', 'Nilai Garjas Terbaru',
-  'Terakhir Latihan'];
+  'Terakhir Latihan', 'Disimpan Admin', 'Simpan Nomor Admin'];
 var KOLOM_CATATAN = ['ID Catatan', 'Waktu Input', 'Email JadiPrajurit', 'Nama Lengkap', 'Tanggal',
   'Lari 12 Menit (m)', 'Pull-up/Chinning (kali)', 'Sit-up (kali)', 'Push-up (kali)', 'Shuttle Run (detik)',
   'Simulasi', 'Nilai Garjas', 'Catatan'];
 var KOLOM_STANDAR = ['Jenis Kelamin', 'Item', 'Hasil', 'Nilai'];
 var KOLOM_PENGATURAN = ['Kunci', 'Nilai', 'Keterangan'];
+var KOLOM_KONTAK = ['Waktu', 'ID Peserta', 'Nama Kontak', 'No. WhatsApp', 'Email JadiPrajurit', 'Status'];
 
 var ITEM_KEYS = ['lari', 'pullup', 'situp', 'pushup', 'shuttle'];
 var ITEM_LABEL = {
@@ -69,7 +71,9 @@ var PENGATURAN_AWAL = [
   ['sumber_standar', 'Tabel Garjas TNI golongan umur 18–25 tahun (nilai 100 sesuai naskah Pusdikjas TNI AD); perlu dicocokkan dengan juknis seleksi terbaru', 'Sumber tabel nilai, misalnya nama juknis dan tahunnya. Tampil di aplikasi.'],
   ['target_default', '70', 'Target nilai awal untuk casis yang baru mendaftar.'],
   ['link_grup_wa', '', 'Link grup WhatsApp casis. Kosongkan bila tidak ada.'],
-  ['wa_admin', '', 'Nomor WhatsApp admin untuk bantuan, format 628xxxxxxxxxx. Kosongkan bila tidak ada.']
+  ['wa_admin', '', 'Nomor WhatsApp admin untuk bantuan, format 628xxxxxxxxxx. Kosongkan bila tidak ada.'],
+  ['nama_admin', 'Admin JadiPrajurit', 'Nama kontak admin yang tersimpan di HP casis saat mereka menekan "Simpan nomor admin".'],
+  ['label_kontak', 'Casis JadiPrajurit', 'Akhiran nama kontak di tab Simpan Kontak (untuk impor bulk lewat Markaz). Contoh hasil: "Rizky Aditya Casis JadiPrajurit".']
 ];
 
 /* ------------------------------------------------------------------ */
@@ -118,6 +122,10 @@ function setup() {
   pengaturan.getRange('C:C').setWrap(true);
 
   // Hapus Sheet1 bawaan bila masih kosong
+  var kontak = siapkanTab_(ss, TAB.KONTAK, KOLOM_KONTAK, 4);
+  kontak.getRange('B:F').setNumberFormat('@');
+  kontak.setColumnWidth(6, 320);
+
   var s1 = ss.getSheetByName('Sheet1');
   if (s1 && s1.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s1);
 
@@ -164,6 +172,7 @@ function doPost(e) {
       case 'masuk': return json_(masuk_(body.email));
       case 'simpanProfil': return json_(simpanProfil_(body.email, body.profil || {}));
       case 'tambahCatatan': return json_(tambahCatatan_(body.email, body.catatan || {}, body.ringkasan || {}));
+      case 'konfirmasiKontak': return json_(konfirmasiKontak_(body.email));
       case 'hapusCatatan': return json_(hapusCatatan_(body.email, body.id, body.ringkasan || {}));
     }
     return json_({ ok: false, kode: 'aksi_tidak_dikenal' });
@@ -208,7 +217,8 @@ function ambilConfig_() {
     sumberStandar: set.sumber_standar || '',
     targetDefault: Number(set.target_default) > 0 ? Number(set.target_default) : 70,
     linkGrup: /^https:\/\//.test(set.link_grup_wa || '') ? set.link_grup_wa : '',
-    waAdmin: /^62\d{8,13}$/.test(String(set.wa_admin || '').replace(/\D/g, '')) ? String(set.wa_admin).replace(/\D/g, '') : ''
+    waAdmin: /^62\d{8,13}$/.test(String(set.wa_admin || '').replace(/\D/g, '')) ? String(set.wa_admin).replace(/\D/g, '') : '',
+    namaAdmin: String(set.nama_admin || 'Admin JadiPrajurit').slice(0, 60)
   };
 }
 
@@ -220,7 +230,9 @@ function daftar_(p) {
     var id = 'P' + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase();
     var waktu = sekarang_();
     sh.appendRow([id, waktu.slice(0, 10), teks_(v.name, 80), v.email, '+' + v.wa, v.gender, v.age, v.height, v.weight,
-      teks_(v.domisili, 60), v.matra, v.jalur, v.testDate, v.target, 'Ya (' + waktu.slice(0, 10) + ')', waktu, 0, '', '']);
+      teks_(v.domisili, 60), v.matra, v.jalur, v.testDate, v.target, 'Ya (' + waktu.slice(0, 10) + ')', waktu, 0, '', '',
+      'Ya', '']);
+    antreKontak_(id, v.name, v.wa, v.email);
     return { ok: true, profil: profilPublik_(sh, sh.getLastRow()), catatan: [] };
   });
 }
@@ -287,6 +299,83 @@ function hapusCatatan_(email, id, ringkasan) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Kontak WhatsApp                                                     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Setiap casis yang mendaftar otomatis masuk tab "Simpan Kontak" berstatus
+ * "Belum disimpan admin". Admin menyimpannya secara bulk lewat Markaz, lalu
+ * menandainya lewat menu Pelatih Garjas → Tandai semua sudah disimpan.
+ * Casis wajib menyimpan nomor admin sebelum masuk aplikasi; konfirmasinya
+ * tercatat di kolom "Simpan Nomor Admin" pada tab Peserta.
+ */
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Pelatih Garjas')
+    .addItem('Tandai semua sudah disimpan', 'tandaiKontakTersimpan')
+    .addItem('Ekspor kontak belum disimpan ke vCard', 'eksporKontakVcf')
+    .addToUi();
+}
+
+function konfirmasiKontak_(email) {
+  email = normEmail_(email);
+  return denganKunci_(function () {
+    var sh = tab_(TAB.PESERTA);
+    var baris = cariBaris_(sh, 4, email);
+    if (baris < 0) throw { kode: 'tidak_ditemukan' };
+    if (!/^Ya/.test(String(sh.getRange(baris, 21).getValue()))) sh.getRange(baris, 21).setValue('Ya (' + sekarang_() + ')');
+    if (String(sh.getRange(baris, 20).getValue()) !== 'Ya') {
+      // Casis lama yang mendaftar sebelum fitur ini: masukkan ke antrean simpan kontak.
+      sh.getRange(baris, 20).setValue('Ya');
+      antreKontak_(String(sh.getRange(baris, 1).getValue()), String(sh.getRange(baris, 3).getValue()).replace(/^'/, ''),
+        String(sh.getRange(baris, 5).getValue()).replace(/\D/g, ''), email);
+    }
+    return { ok: true, profil: profilPublik_(sh, baris) };
+  });
+}
+
+function antreKontak_(id, nama, wa, email) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB.KONTAK);
+    if (!sh || !wa) return;
+    var noWa = '+' + wa;
+    if (cariBaris_(sh, 4, noWa) > 0) return;
+    var label = String(bacaPengaturan_(ss).label_kontak || 'Casis JadiPrajurit').trim();
+    var namaKontak = (String(nama).trim() + (label ? ' ' + label : '')).slice(0, 120);
+    sh.appendRow([sekarang_(), id, teks_(namaKontak, 120), noWa, email, 'Belum disimpan admin']);
+  } catch (e) {
+    Logger.log('antreKontak_: ' + e);
+  }
+}
+
+/** Menu: tandai semua kontak "Belum disimpan admin" sebagai sudah disimpan (setelah impor lewat Markaz). */
+function tandaiKontakTersimpan() {
+  var sh = tab_(TAB.KONTAK), n = sh.getLastRow() - 1, jumlah = 0;
+  if (n > 0) {
+    var st = sh.getRange(2, 6, n, 1).getValues();
+    st.forEach(function (r, i) { if (/^Belum/.test(String(r[0]))) { st[i][0] = 'Sudah disimpan (' + sekarang_() + ')'; jumlah++; } });
+    sh.getRange(2, 6, n, 1).setValues(st);
+  }
+  SpreadsheetApp.getUi().alert(jumlah + ' kontak ditandai sudah disimpan.');
+}
+
+/** Menu: buat file .vcf di Google Drive berisi kontak yang belum disimpan admin. */
+function eksporKontakVcf() {
+  var sh = tab_(TAB.KONTAK), n = sh.getLastRow() - 1, isi = [];
+  if (n > 0) {
+    sh.getRange(2, 1, n, KOLOM_KONTAK.length).getValues().forEach(function (r) {
+      if (!/^Belum/.test(String(r[5]))) return;
+      var nama = String(r[2]).replace(/^'/, '').replace(/[\r\n;,]/g, ' ');
+      isi.push('BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + nama + '\r\nN:' + nama + ';;;;\r\nTEL;TYPE=CELL:' + String(r[3]) + '\r\nEND:VCARD');
+    });
+  }
+  if (!isi.length) { SpreadsheetApp.getUi().alert('Tidak ada kontak yang belum disimpan.'); return; }
+  var file = DriveApp.createFile('Kontak Casis JadiPrajurit ' + sekarang_().replace(/[: ]/g, '-') + '.vcf', isi.join('\r\n') + '\r\n', 'text/vcard');
+  SpreadsheetApp.getUi().alert(isi.length + ' kontak diekspor ke Google Drive:\n' + file.getUrl());
+}
+
+/* ------------------------------------------------------------------ */
 /* Bantuan                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -297,7 +386,9 @@ function profilPublik_(sh, baris) {
     id: String(r[0]), regAt: tgl_(r[1]), name: String(r[2]).replace(/^'/, ''), email: String(r[3]),
     gender: String(r[5]), age: r[6] === '' ? '' : Number(r[6]), height: r[7] === '' ? '' : Number(r[7]),
     weight: r[8] === '' ? '' : Number(r[8]), domisili: String(r[9]).replace(/^'/, ''), matra: String(r[10]),
-    jalur: String(r[11]), testDate: tgl_(r[12]), target: Number(r[13]) || 70, waTerisi: String(r[4]).replace(/\D/g, '').length > 8
+    jalur: String(r[11]), testDate: tgl_(r[12]), target: Number(r[13]) || 70, waTerisi: String(r[4]).replace(/\D/g, '').length > 8,
+    disimpanAdmin: String(r[19]) === 'Ya',
+    kontakAdmin: /^Ya/.test(String(r[20]))
   };
 }
 
