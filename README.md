@@ -2,7 +2,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai garjas, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-6** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-7** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -14,7 +14,7 @@ Versi web: **2026.10.11-6** · Versi backend: **2026.10.11-5**
 - **Program mingguan** disusun otomatis dari nilai terbaru: fokus ke item terlemah, ada hari istirahat, tidak ada dua hari berat berturut-turut, dan volume dikurangi 7 hari sebelum tes.
 - **Peringkat casis:** peringkat nilai garjas (khusus yang sudah mencatat kelima item) dan peringkat paling rajin minggu ini, bisa difilter per matra. Yang tampil hanya nama depan dan inisial; casis bisa menyembunyikan diri di Profil.
 - **Bagikan hasil:** gambar ukuran Instagram Story/Status WhatsApp berisi nilai, rincian item, dan peringkat, plus link hasil publik `?h=KODE`. Orang yang membuka link melihat hasil temannya dan tombol daftar; pendaftar lewat link tercatat di kolom **Diajak Oleh**.
-- **Push-up dihitung kamera (prototipe, `pushup.html`):** pengenalan pose berjalan di HP (MediaPipe), hanya menghitung push-up yang sah (siku menekuk ≤100° lalu lurus ≥150°, badan lurus, posisi mendatar). Video tidak direkam atau dikirim. Hasil belum tersimpan ke catatan.
+- **Tes kamera (prototipe, `kamera.html`):** push-up, sit-up, dan pull-up/chinning dihitung kamera dengan pengenalan pose di HP (MediaPipe). Hanya gerakan sah yang dihitung; gerakan salah ditolak dengan alasannya. Pull-up/chinning berlabel uji coba. Video tidak direkam atau dikirim. Hasil belum tersimpan ke catatan. `pushup.html` lama otomatis dialihkan ke sini.
 - **Lari 12 menit dengan GPS (prototipe, `lari.html`):** jarak dari GPS, diperiksa sensor langkah dan batas kecepatan manusia. Layar wajib menyala; bila layar mati atau aplikasi ditinggalkan, tes dinyatakan tidak sah. Lokasi tidak disimpan atau dikirim. Hasil belum tersimpan ke catatan.
 - **Halaman `?cek=1`** untuk memeriksa versi file dan koneksi ke Google Sheets.
 
@@ -24,7 +24,8 @@ Aplikasi ini tidak memakai AI. Semua nilai dihitung dari tab **Standar Nilai** d
 
 ```
 index.html
-pushup.html         ← prototipe push-up dihitung kamera
+kamera.html         ← prototipe tes kamera (push-up, sit-up, pull-up/chinning)
+pushup.html         ← pengalih ke kamera.html?item=pushup
 lari.html           ← prototipe lari 12 menit dengan GPS
 css/style.css
 js/config.js        ← URL Apps Script (diisi sekali, tidak ikut paket update)

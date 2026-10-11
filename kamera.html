@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F3A2A">
+<title>Tes Kamera (Prototipe) – Pelatih Garjas</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#F3F2EC;--card:#FFFFFF;--ink:#17211B;--muted:#4B5550;--line:#E1DFD6;--line2:#ECEAE2;
+  --hero:#1F3A2A;--hero-ink:#F3F2EC;--hero-soft:#D9E3D4;--btn:#17211B;--btn-ink:#FFFFFF;
+  --field:#FFFFFF;--field-line:#C9C6BA;--good:#2F5D34;--good-soft:#E3EDDF;--warn:#9A4207;--warn-soft:#FBEFE3;--warn-ink:#5C2A06;--focus:#2563EB;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#101511;--card:#19201B;--ink:#ECEFEA;--muted:#A8B1AB;--line:#2B342E;--line2:#232B25;
+  --hero:#24402E;--hero-ink:#F1F4EF;--hero-soft:#C3D2BD;--btn:#ECEFEA;--btn-ink:#101511;
+  --field:#141A16;--field-line:#3A453E;--good:#8CCB86;--good-soft:#1E3322;--warn:#F2A766;--warn-soft:#3A2414;--warn-ink:#F6CFA8;--focus:#7AA7FF;color-scheme:dark;
+}}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Public Sans','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding:18px}
+h1{margin:0;font-family:'Archivo',sans-serif;font-weight:800;font-size:24px;line-height:1.15}
+h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
+.sub{font-size:13px;color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;background:var(--warn-soft);color:var(--warn-ink)}
+.btn{min-height:48px;border-radius:13px;border:0;background:var(--btn);color:var(--btn-ink);font:700 15px 'Public Sans',sans-serif;padding:0 18px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--field-line)}
+.btn[disabled]{opacity:.55;cursor:default}
+.btns{display:flex;gap:8px;flex-wrap:wrap}.btns .btn{flex:1 1 auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{min-height:42px;padding:0 14px;border-radius:999px;border:1px solid var(--field-line);background:var(--card);color:var(--ink);font:600 14px 'Public Sans',sans-serif;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--hero);border-color:var(--hero);color:var(--hero-ink)}
+.f{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}
+.note{border-radius:14px;padding:11px 13px;font-size:14px;line-height:1.45;background:var(--line2)}
+.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.muted{color:var(--muted)}.small{font-size:13px}.tiny{font-size:12px}
+/* Layar kamera */
+#cam{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:10}
+#cam.on{display:flex}
+#stage{position:relative;flex:1 1 auto;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#view{max-width:100%;max-height:100%;display:block}
+.hud{position:absolute;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 0;pointer-events:none}
+.hud .box{background:rgba(16,21,17,.72);color:#F3F2EC;border-radius:16px;padding:8px 14px;min-width:96px}
+.hud .lbl{font-size:12px;color:#C3D2BD}
+.hud .num{font-family:'Archivo',sans-serif;font-weight:800;font-size:40px;line-height:1;font-variant-numeric:tabular-nums}
+.hud .big{font-size:64px}
+#status{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;max-width:calc(100% - 28px);background:rgba(16,21,17,.8);color:#F3F2EC;border-radius:999px;padding:10px 18px;font-weight:700;font-size:15px;text-align:center}
+#status.ok{background:#2F5D34}#status.bad{background:#9A4207}
+#countdown{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-family:'Archivo',sans-serif;font-weight:800;font-size:160px;color:#F3F2EC;text-shadow:0 4px 30px rgba(0,0,0,.6);pointer-events:none}
+#debug{position:absolute;left:12px;bottom:70px;background:rgba(16,21,17,.78);color:#F3F2EC;border-radius:12px;padding:8px 10px;font-size:12px;line-height:1.5;display:none;font-variant-numeric:tabular-nums}
+.bar{display:flex;gap:8px;padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px));background:#101511}
+.bar .btn{flex:1 1 0;background:#F3F2EC;color:#101511}
+.bar .btn.ghost{background:transparent;color:#F3F2EC;border-color:#3A453E}
+.res-num{font-family:'Archivo',sans-serif;font-weight:800;font-size:84px;line-height:1;font-variant-numeric:tabular-nums}
+.hero{background:var(--hero);color:var(--hero-ink);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.hero .soft{color:var(--hero-soft);font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;background:var(--hero-ink);color:var(--hero);align-self:flex-start}
+input[type=range]{width:100%}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:putar .8s linear infinite;vertical-align:-3px}
+@keyframes putar{to{transform:rotate(360deg)}}
+</style>
+
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="stack" id="setup">
+    <div class="stack" style="gap:6px">
+      <div class="sub"><a href="./" style="color:inherit">Pelatih Garjas</a> · Prototipe</div>
+      <h1>Tes kamera</h1>
+      <div class="sub">Kamera mengenali gerakanmu dan hanya menghitung gerakan yang sah. Video tidak direkam dan tidak dikirim ke mana pun.</div>
+    </div>
+
+    <div class="card stack">
+      <div class="f">Gerakan
+        <div class="chips" role="group" aria-label="Gerakan" id="item-chips"></div>
+      </div>
+      <div class="f">Jenis
+        <div class="chips" role="group" aria-label="Jenis" id="gender-chips"></div>
+      </div>
+    </div>
+
+    <div class="card stack" id="panduan"></div>
+
+    <div class="card stack">
+      <div class="f">Mode
+        <div class="chips" role="group" aria-label="Mode">
+          <button type="button" class="chip" data-mode="tes" aria-pressed="true">Tes 1 menit</button>
+          <button type="button" class="chip" data-mode="bebas" aria-pressed="false">Latihan bebas</button>
+        </div>
+      </div>
+      <div class="f">Kamera
+        <div class="chips" role="group" aria-label="Kamera">
+          <button type="button" class="chip" data-facing="user" aria-pressed="true">Depan</button>
+          <button type="button" class="chip" data-facing="environment" aria-pressed="false">Belakang</button>
+        </div>
+      </div>
+      <label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;font-weight:600"><input type="checkbox" id="voice" checked style="width:22px;height:22px"> Sebutkan hitungan dengan suara</label>
+      <label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;font-weight:600"><input type="checkbox" id="dbg" style="width:22px;height:22px"> Tampilkan detail sudut (untuk penguji)</label>
+      <div id="setup-msg" class="small" style="color:var(--warn)" role="alert"></div>
+      <button class="btn" id="start">Mulai kamera</button>
+    </div>
+
+    <details class="card" id="aturan-box">
+      <summary style="cursor:pointer;font-weight:700;min-height:36px;display:flex;align-items:center">Aturan hitungan</summary>
+      <ul class="steps" id="aturan" style="margin-top:8px"></ul>
+      <div id="tune" style="display:none;margin-top:10px" class="stack"></div>
+    </details>
+  </div>
+
+  <div class="stack" id="result" style="display:none"></div>
+</div>
+
+<div id="cam" aria-live="polite">
+  <div id="stage">
+    <canvas id="view" aria-label="Tampilan kamera dengan kerangka tubuh"></canvas>
+    <div class="hud">
+      <div class="box"><div class="lbl" id="time-lbl">Waktu</div><div class="num" id="time">1:00</div></div>
+      <div class="box" style="text-align:right"><div class="lbl" id="count-lbl">Sah</div><div class="num big" id="count">0</div><div class="lbl" id="bad-count">tidak sah: 0</div></div>
+    </div>
+    <div id="countdown"></div>
+    <div id="status">Menyiapkan…</div>
+    <div id="debug"></div>
+  </div>
+  <div class="bar">
+    <button class="btn ghost" id="cancel">Batal</button>
+    <button class="btn" id="finish">Selesai</button>
+  </div>
+</div>
+<video id="video" playsinline muted style="display:none"></video>
+
+<script type="module">
+const MP_VER = '0.10.21';
+const MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+const $ = (s) => document.querySelector(s);
+
+/* ================= Geometri ================= */
+const sudut = (a, b, c) => {
+  const abx = a.x - b.x, aby = a.y - b.y, cbx = c.x - b.x, cby = c.y - b.y;
+  const d = (abx * cbx + aby * cby) / (Math.hypot(abx, aby) * Math.hypot(cbx, cby) || 1);
+  return Math.acos(Math.max(-1, Math.min(1, d))) * 180 / Math.PI;
+};
+const jarak = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const datar = (a, b) => { const k = Math.abs(Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI) % 180; return Math.min(k, 180 - k); }; // 0 = mendatar
+const naik = (atas, bawah) => Math.atan2(bawah.y - atas.y, Math.abs(atas.x - bawah.x) || 0.0001) * 180 / Math.PI; // sudut garis bawah→atas dari horizontal
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const vis = (lm, ids) => ids.reduce((s, i) => s + (lm[i].visibility ?? 0), 0) / ids.length;
+function sisi(lm) {
+  const L = { sh: 11, el: 13, wr: 15, hip: 23, knee: 25, ank: 27, ear: 7 }, R = { sh: 12, el: 14, wr: 16, hip: 24, knee: 26, ank: 28, ear: 8 };
+  const vl = vis(lm, Object.values(L)), vr = vis(lm, Object.values(R));
+  const S = vl >= vr ? L : R, o = {};
+  for (const k in S) o[k] = lm[S[k]];
+  o.vis = Math.max(vl, vr);
+  return o;
+}
+
+/* ================= Definisi gerakan ================= */
+const ITEM = {
+  pushup: {
+    nama: 'Push-up', satuan: 'push-up',
+    jenis: { Pria: 'Pria (tumpuan kaki)', Wanita: 'Wanita (tumpuan lutut)' },
+    tabel: { Pria: [[15, 0], [16, 1], [34, 55], [43, 100]], Wanita: [[5, 0], [6, 3], [19, 55], [28, 100]] },
+    param: { down: { label: 'Batas siku turun', min: 70, max: 120, def: 100, unit: '°' }, up: { label: 'Batas siku lurus', min: 135, max: 175, def: 150, unit: '°' }, body: { label: 'Toleransi badan lurus', min: 130, max: 175, def: 155, unit: '°' } },
+    ilustrasi: '<line x1="10" y1="104" x2="310" y2="104" stroke="currentColor" stroke-width="2" opacity=".35"/><circle cx="70" cy="66" r="9" fill="none" stroke="currentColor" stroke-width="3"/><path d="M80 72 L180 86 M100 75 L102 104 M180 86 L230 100" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><rect x="270" y="58" width="22" height="42" rx="4" fill="none" stroke="currentColor" stroke-width="3"/><path d="M262 80 L120 80" stroke="currentColor" stroke-width="2" stroke-dasharray="5 5" opacity=".6"/>',
+    posisiHp: '± 2 meter, dari samping',
+    panduan: (g) => ['Sandarkan HP berdiri di lantai, <b>di samping</b> badanmu, sejajar dengan pinggang.', 'Pastikan <b>kepala sampai kaki</b> terlihat dan cahaya cukup terang.', 'Ambil posisi push-up dengan lengan lurus. Hitungan mundur mulai otomatis.'],
+    aturan: (p, g) => ['Siku menekuk sampai ' + p.down + '° atau lebih kecil, lalu lurus kembali sampai ' + p.up + '° atau lebih.', 'Badan lurus (bahu, pinggul, ' + (g === 'Wanita' ? 'lutut' : 'pergelangan kaki') + ' segaris) dan posisi telungkup mendatar.', 'Turun kurang dalam, pinggul turun atau terangkat, atau berdiri, tidak dihitung.'],
+    nilai(lm, p, g) {
+      const s = sisi(lm), tumpu = g === 'Wanita' ? s.knee : s.ank;
+      const siku = sudut(s.sh, s.el, s.wr), badan = sudut(s.sh, s.hip, tumpu), miring = datar(s.sh, tumpu);
+      const mendatar = miring <= 40, lurus = badan >= p.body;
+      const alasan = !mendatar ? 'Bukan posisi push-up' : !lurus ? (s.hip.y < Math.min(s.sh.y, tumpu.y) - 4 ? 'Pinggul terlalu tinggi' : 'Pinggul turun') : '';
+      return {
+        vis: s.vis, v: siku, awal: (v) => v > p.up, puncak: (v) => v < p.down, progres: (v) => clamp((170 - v) / (170 - p.down), 0, 1),
+        ok: mendatar && lurus, alasan, siapMsg: !mendatar ? 'Ambil posisi push-up dengan badan menghadap lantai' : !lurus ? 'Luruskan badan: ' + alasan.toLowerCase() : 'Luruskan lengan untuk mulai',
+        garis: [[[s.sh, s.hip, tumpu], '#8CCB86'], [[s.sh, s.el, s.wr], '#F2B27A']],
+        dbg: 'siku ' + Math.round(siku) + '° · badan ' + Math.round(badan) + '° · miring ' + Math.round(miring) + '°'
+      };
+    },
+    kurang: 'Kurang turun',
+    tips: { 'Kurang turun': 'turunkan dada sampai kira-kira sekepal tangan dari lantai sebelum mendorong naik.', 'Pinggul turun': 'kencangkan perut dan bokong supaya badan tetap lurus seperti papan.', 'Pinggul terlalu tinggi': 'turunkan pinggul sampai segaris dengan bahu dan kaki.' }
+  },
+
+  situp: {
+    nama: 'Sit-up', satuan: 'sit-up',
+    jenis: { Pria: 'Pria', Wanita: 'Wanita' },
+    tabel: { Pria: [[13, 0], [14, 1], [32, 55], [41, 100]], Wanita: [[13, 0], [14, 3], [27, 55], [36, 100]] },
+    param: { down: { label: 'Batas badan turun', min: 10, max: 40, def: 25, unit: '°' }, up: { label: 'Batas badan naik', min: 55, max: 90, def: 70, unit: '°' }, tangan: { label: 'Jarak tangan ke kepala (× panjang badan)', min: 30, max: 90, def: 60, unit: '%' } },
+    ilustrasi: '<line x1="10" y1="104" x2="310" y2="104" stroke="currentColor" stroke-width="2" opacity=".35"/><circle cx="62" cy="92" r="9" fill="none" stroke="currentColor" stroke-width="3"/><path d="M72 96 L140 100 L170 66 L205 102 M60 84 L76 80" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="270" y="58" width="22" height="42" rx="4" fill="none" stroke="currentColor" stroke-width="3"/><path d="M262 84 L120 84" stroke="currentColor" stroke-width="2" stroke-dasharray="5 5" opacity=".6"/>',
+    posisiHp: '± 2 meter, dari samping',
+    panduan: () => ['Sandarkan HP berdiri di lantai, <b>di samping</b> badanmu, sejajar dengan pinggang.', 'Berbaring telentang, <b>lutut ditekuk</b> sekitar 90°, <b>jari tangan terjalin di belakang kepala</b>. Kaki boleh dikaitkan atau ditahan.', 'Pastikan kepala sampai kaki terlihat. Hitungan mundur mulai otomatis saat posisi berbaring terbaca.'],
+    aturan: (p) => ['Badan naik sampai ' + p.up + '° atau lebih dari lantai, lalu turun kembali sampai punggung hampir menempel (di bawah ' + p.down + '°).', 'Lutut harus tetap ditekuk (sekitar 50°–120°).', 'Tangan harus tetap di belakang kepala. Mendorong dengan tangan tidak dihitung.'],
+    nilai(lm, p) {
+      const s = sisi(lm);
+      const badan = clamp(naik(s.sh, s.hip), -90, 90), lutut = sudut(s.hip, s.knee, s.ank);
+      const panjang = jarak(s.sh, s.hip) || 1, kepala = s.ear.visibility > 0.3 ? s.ear : lm[0];
+      const tangan = jarak(s.wr, kepala) / panjang;
+      const lututOk = lutut >= 50 && lutut <= 120, tanganOk = tangan <= p.tangan / 100;
+      const alasan = !lututOk ? (lutut > 120 ? 'Kaki terlalu lurus' : 'Lutut terlalu ditekuk') : !tanganOk ? 'Tangan lepas dari kepala' : '';
+      return {
+        vis: s.vis, v: badan, awal: (v) => v < p.down, puncak: (v) => v > p.up, progres: (v) => clamp(v / p.up, 0, 1),
+        ok: lututOk && tanganOk, alasan, siapMsg: alasan ? alasan + '. Perbaiki posisi untuk mulai' : 'Berbaring telentang untuk mulai',
+        garis: [[[s.sh, s.hip, s.knee, s.ank], '#8CCB86'], [[s.sh, s.el, s.wr], '#F2B27A']],
+        dbg: 'badan ' + Math.round(badan) + '° · lutut ' + Math.round(lutut) + '° · tangan ' + Math.round(tangan * 100) + '%'
+      };
+    },
+    kurang: 'Kurang naik',
+    tips: { 'Kurang naik': 'angkat badan sampai hampir tegak, siku mendekati lutut.', 'Tangan lepas dari kepala': 'jaga jari tetap terjalin di belakang kepala, jangan mendorong dengan tangan.', 'Kaki terlalu lurus': 'tekuk lutut sekitar 90° dan kaitkan kaki supaya tidak terangkat.', 'Lutut terlalu ditekuk': 'geser telapak kaki sedikit menjauh sampai lutut sekitar 90°.' }
+  },
+
+  pullup: {
+    nama: 'Pull-up', namaW: 'Chinning', satuan: 'gerakan', ujiCoba: true,
+    jenis: { Pria: 'Pria (pull-up)', Wanita: 'Wanita (chinning)' },
+    tabel: { Pria: [[0, 0], [1, 15], [18, 100]], Wanita: [[11, 0], [12, 2], [13, 4], [14, 6], [15, 8], [16, 10], [17, 12], [18, 14], [19, 16], [20, 18], [21, 20], [22, 22], [23, 24], [24, 26], [25, 29], [26, 31], [27, 33], [28, 35], [29, 37], [30, 39], [31, 43], [32, 46], [33, 49], [34, 51], [35, 53], [36, 55], [37, 57], [38, 58], [39, 60], [40, 62], [41, 63], [42, 65], [43, 67], [44, 68], [45, 70], [46, 72], [47, 73], [48, 75], [49, 77], [50, 78], [51, 80], [52, 82], [53, 83], [54, 85], [55, 87], [56, 88], [57, 90], [58, 92], [59, 93], [60, 95], [61, 97], [62, 98], [63, 100]] },
+    param: { lurus: { label: 'Batas lengan lurus', min: 140, max: 175, def: 155, unit: '°' }, dagu: { label: 'Toleransi dagu di atas palang', min: -15, max: 15, def: 0, unit: '%' }, ayun: { label: 'Batas ayunan (× lebar bahu)', min: 30, max: 150, def: 70, unit: '%' } },
+    ilustrasi: '<line x1="40" y1="20" x2="160" y2="20" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="100" cy="42" r="9" fill="none" stroke="currentColor" stroke-width="3"/><path d="M80 20 L86 50 L100 54 L114 50 L120 20 M100 54 L100 82 M100 82 L94 110 M100 82 L106 110" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><line x1="10" y1="112" x2="310" y2="112" stroke="currentColor" stroke-width="2" opacity=".35"/><rect x="258" y="70" width="22" height="42" rx="4" fill="none" stroke="currentColor" stroke-width="3" transform="rotate(-12 269 91)"/><path d="M252 86 L130 60" stroke="currentColor" stroke-width="2" stroke-dasharray="5 5" opacity=".6"/>',
+    posisiHp: '± 2–3 meter, serong 45°, agak mendongak',
+    panduan: (g) => g === 'Wanita'
+      ? ['Taruh HP <b>di samping</b> sekitar 2 meter, sehingga palang, kepala, dan kaki terlihat.', 'Bergantung pada palang dengan badan lurus dan tumit di tanah.', 'Usahakan cahaya dari depan, jangan membelakangi langit terang.']
+      : ['Sandarkan HP sekitar 2–3 meter <b>di depan agak serong (45°)</b>, sedikit mendongak sampai <b>palang dan kaki</b> terlihat.', 'Bergantung dengan lengan lurus. Hitungan mundur mulai otomatis.', 'Usahakan cahaya dari depan, jangan membelakangi langit terang.'],
+    aturan: (p, g) => ['Naik sampai mulut berada di atas garis genggaman tangan (palang).', 'Turun sampai lengan lurus kembali (' + p.lurus + '° atau lebih).', g === 'Wanita' ? 'Badan harus tetap lurus dari bahu sampai tumit.' : 'Harus benar-benar menggantung. Badan mengayun (kipping) tidak dihitung.'],
+    nilai(lm, p, g, sesi) {
+      const W = g === 'Wanita';
+      const wr = { x: (lm[15].x + lm[16].x) / 2, y: (lm[15].y + lm[16].y) / 2 };
+      const sh = { x: (lm[11].x + lm[12].x) / 2, y: (lm[11].y + lm[12].y) / 2 };
+      const hip = { x: (lm[23].x + lm[24].x) / 2, y: (lm[23].y + lm[24].y) / 2 };
+      const mulut = { x: (lm[9].x + lm[10].x) / 2, y: (lm[9].y + lm[10].y) / 2 };
+      const kiri = sudut(lm[11], lm[13], lm[15]), kanan = sudut(lm[12], lm[14], lm[16]);
+      const vk = vis(lm, [11, 13, 15]), vn = vis(lm, [12, 14, 16]);
+      const siku = vk > 0.5 && vn > 0.5 ? (kiri + kanan) / 2 : (vk >= vn ? kiri : kanan);
+      const bahuLebar = Math.max(jarak(lm[11], lm[12]), jarak(sh, hip) * 0.5, 1);
+      const tinggiKepala = jarak(lm[0], sh) || 1;
+      const lurusLengan = siku > p.lurus;
+      const menggantung = wr.y < sh.y;
+      // Patokan palang dan bahu diambil saat posisi awal (sebelum mulai), lalu dibekukan.
+      if (sesi && !sesi.mulai && menggantung && lurusLengan) { sesi.wrDasar = wr.y; sesi.shDasar = sh.y; sesi.ayunDasar = (hip.x - wr.x) / bahuLebar; }
+      const badanNaik = !sesi || sesi.shDasar == null || sh.y < sesi.shDasar - 0.4 * tinggiKepala;
+      const diAtas = mulut.y < wr.y + (p.dagu / 100) * tinggiKepala && badanNaik;
+      let ok = true, alasan = '';
+      if (sesi && sesi.mulai && sesi.wrDasar != null && Math.abs(wr.y - sesi.wrDasar) > 0.6 * tinggiKepala) { ok = false; alasan = 'Tangan tidak menggenggam palang'; }
+      if (W) {
+        const s = sisi(lm);
+        if (sudut(s.sh, s.hip, s.ank) < 150) { ok = false; alasan = 'Badan tidak lurus'; }
+      } else if (sesi && sesi.ayunDasar != null && Math.abs((hip.x - wr.x) / bahuLebar - sesi.ayunDasar) > p.ayun / 100) { ok = false; alasan = 'Badan mengayun'; }
+      if (!menggantung) { ok = false; alasan = W ? 'Tangan harus menggenggam palang di atas bahu' : 'Tidak menggantung'; }
+      return {
+        vis: Math.max(vk, vn), v: siku, awal: (v) => v > p.lurus && !diAtas && menggantung, puncak: () => diAtas, progres: (v) => clamp((170 - v) / 100, 0, 1),
+        ok, alasan, siapMsg: !menggantung ? (W ? 'Genggam palang dan condongkan badan' : 'Bergantung pada palang dengan lengan lurus') : alasan ? alasan : 'Luruskan lengan untuk mulai',
+        garis: [[[lm[15], lm[13], lm[11], lm[12], lm[14], lm[16]], '#F2B27A'], [[sh, hip], '#8CCB86'], [[lm[15], lm[16]], '#F3F2EC']],
+        dbg: 'siku ' + Math.round(siku) + '° · mulut ' + (diAtas ? 'di atas' : 'di bawah') + ' palang' + (W ? '' : ' · ayun ' + (sesi && sesi.ayunDasar != null ? Math.round(Math.abs((hip.x - wr.x) / bahuLebar - sesi.ayunDasar) * 100) : 0) + '%')
+      };
+    },
+    kurang: 'Dagu tidak melewati palang',
+    tips: { 'Dagu tidak melewati palang': 'tarik badan lebih tinggi sampai dagu melewati palang.', 'Badan mengayun': 'diamkan badan sebelum menarik, jangan memakai ayunan kaki.', 'Badan tidak lurus': 'kencangkan perut dan bokong supaya badan tetap lurus.', 'Tidak menggantung': 'pastikan kaki tidak menapak dan lengan lurus di bawah palang.' }
+  }
+};
+
+/* ================= Pilihan ================= */
+const q = new URLSearchParams(location.search);
+const opt = { item: ITEM[q.get('item')] ? q.get('item') : 'pushup', gender: 'Pria', mode: 'tes', facing: 'user' };
+let par = {};
+function resetParam() { par = {}; const ps = ITEM[opt.item].param; for (const k in ps) par[k] = ps[k].def; }
+function labelItem() { const it = ITEM[opt.item]; return opt.gender === 'Wanita' && it.namaW ? it.namaW : it.nama; }
+function renderSetup() {
+  const it = ITEM[opt.item];
+  $('#item-chips').innerHTML = Object.keys(ITEM).map((k) => '<button type="button" class="chip" data-item="' + k + '" aria-pressed="' + (k === opt.item) + '">' + (k === 'pullup' ? 'Pull-up / Chinning' : ITEM[k].nama) + '</button>').join('');
+  $('#gender-chips').innerHTML = ['Pria', 'Wanita'].map((g) => '<button type="button" class="chip" data-gender="' + g + '" aria-pressed="' + (g === opt.gender) + '">' + it.jenis[g] + '</button>').join('');
+  $('#panduan').innerHTML = '<div class="row" style="display:flex;justify-content:space-between;gap:10px;align-items:center"><h2>Cara menaruh HP</h2>' + (it.ujiCoba ? '<span class="tag">Uji coba</span>' : '') + '</div>'
+    + '<svg viewBox="0 0 320 120" width="100%" role="img" aria-label="Ilustrasi posisi HP untuk ' + labelItem() + ': ' + it.posisiHp + '" style="display:block;max-width:420px">' + it.ilustrasi + '<text x="190" y="44" font-size="12" fill="currentColor" text-anchor="middle" font-family="Public Sans, sans-serif">' + it.posisiHp + '</text></svg>'
+    + '<ol class="steps">' + it.panduan(opt.gender).map((t) => '<li>' + t + '</li>').join('') + '</ol>';
+  $('#aturan').innerHTML = it.aturan(par, opt.gender).map((t) => '<li>' + t + '</li>').join('');
+  const ps = it.param;
+  $('#tune').innerHTML = Object.keys(ps).map((k) => '<label class="f">' + ps[k].label + ': <span id="v-' + k + '">' + par[k] + '</span>' + ps[k].unit + '<input type="range" data-param="' + k + '" min="' + ps[k].min + '" max="' + ps[k].max + '" value="' + par[k] + '"></label>').join('');
+  $('#tune').style.display = $('#dbg').checked ? 'flex' : 'none';
+  $('#start').textContent = 'Mulai ' + labelItem().toLowerCase();
+  document.title = 'Tes Kamera ' + labelItem() + ' (Prototipe) – Pelatih Garjas';
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.item) { opt.item = b.dataset.item; resetParam(); history.replaceState(null, '', '?item=' + opt.item); renderSetup(); return; }
+  if (b.dataset.gender) { opt.gender = b.dataset.gender; renderSetup(); return; }
+  for (const k of ['mode', 'facing']) {
+    if (b.dataset[k]) { opt[k] = b.dataset[k]; document.querySelectorAll('[data-' + k + ']').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }
+  }
+});
+document.addEventListener('input', (e) => {
+  const k = e.target.dataset && e.target.dataset.param; if (!k) return;
+  par[k] = Number(e.target.value); $('#v-' + k).textContent = par[k];
+  $('#aturan').innerHTML = ITEM[opt.item].aturan(par, opt.gender).map((t) => '<li>' + t + '</li>').join('');
+});
+$('#dbg').addEventListener('change', () => { $('#tune').style.display = $('#dbg').checked ? 'flex' : 'none'; if ($('#dbg').checked) $('#aturan-box').open = true; });
+resetParam(); renderSetup();
+
+/* ================= Kamera & model ================= */
+let landmarker = null, stream = null, raf = 0, wakeLock = null, audio = null, S = null;
+$('#start').addEventListener('click', mulai);
+$('#cancel').addEventListener('click', () => berhenti(false));
+$('#finish').addEventListener('click', () => berhenti(true));
+
+async function siapkanModel() {
+  if (landmarker) return landmarker;
+  const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/vision_bundle.mjs');
+  const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/wasm');
+  const buat = (delegate) => vision.PoseLandmarker.createFromOptions(files, {
+    baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numPoses: 1,
+    minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5
+  });
+  try { landmarker = await buat('GPU'); } catch (e) { landmarker = await buat('CPU'); }
+  return landmarker;
+}
+
+async function mulai() {
+  const msg = $('#setup-msg'), btn = $('#start');
+  msg.textContent = '';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'Browser ini tidak bisa membuka kamera. Coba Chrome atau Safari versi terbaru.'; return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Menyiapkan pengenal gerakan…';
+  try {
+    try { const AC = window.AudioContext || window.webkitAudioContext; if (AC && !audio) audio = new AC(); if (audio && audio.state === 'suspended') await audio.resume(); } catch (e) { }
+    if ('speechSynthesis' in window && $('#voice').checked) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }
+    const [lm, st] = await Promise.all([
+      siapkanModel(),
+      navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: opt.facing, width: { ideal: 640 }, height: { ideal: 480 } } })
+    ]);
+    stream = st;
+    const v = $('#video'); v.srcObject = stream; await v.play();
+    try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { }
+    S = { fase: 'awal', count: 0, bad: 0, alasan: {}, repOk: true, repReason: '', repStart: 0, maxProg: 0, v: null, siapSejak: 0, mulai: 0, selesai: false, countdown: false, lastT: -1, fpsT: performance.now(), fpsN: 0, fps: 0, lastFeedback: '', ayunDasar: null };
+    $('#count').textContent = '0'; $('#bad-count').textContent = 'tidak sah: 0'; $('#count-lbl').textContent = labelItem() + ' sah';
+    $('#time').textContent = opt.mode === 'tes' ? '1:00' : '0:00';
+    $('#time-lbl').textContent = opt.mode === 'tes' ? 'Sisa waktu' : 'Durasi';
+    $('#debug').style.display = $('#dbg').checked ? 'block' : 'none';
+    $('#cam').classList.add('on');
+    setStatus('Ambil posisi awal, seluruh badan terlihat', '');
+    loop();
+  } catch (e) {
+    const n = e && e.name;
+    msg.textContent = n === 'NotAllowedError' ? 'Izin kamera ditolak. Buka pengaturan situs di browser, izinkan kamera, lalu coba lagi.'
+      : n === 'NotFoundError' ? 'Kamera tidak ditemukan di perangkat ini.'
+      : 'Pengenal gerakan gagal dimuat. Periksa koneksi internet lalu coba lagi.';
+    tutupKamera();
+  } finally {
+    btn.disabled = false; btn.textContent = 'Mulai ' + labelItem().toLowerCase();
+  }
+}
+
+/* ================= Loop ================= */
+function loop() {
+  raf = requestAnimationFrame(loop);
+  const v = $('#video'), cv = $('#view');
+  if (v.readyState < 2) return;
+  if (cv.width !== v.videoWidth) { cv.width = v.videoWidth; cv.height = v.videoHeight; }
+  const ctx = cv.getContext('2d'), W = cv.width, H = cv.height, mirror = opt.facing === 'user';
+  ctx.save(); if (mirror) { ctx.translate(W, 0); ctx.scale(-1, 1); } ctx.drawImage(v, 0, 0, W, H); ctx.restore();
+  if (v.currentTime === S.lastT) return;
+  S.lastT = v.currentTime;
+  const now = performance.now();
+  S.fpsN++; if (now - S.fpsT > 1000) { S.fps = S.fpsN; S.fpsN = 0; S.fpsT = now; }
+  let res;
+  try { res = landmarker.detectForVideo(v, now); } catch (e) { return; }
+  tickWaktu(now);
+  const raw = res && res.landmarks && res.landmarks[0];
+  if (!raw) { if (!S.selesai) setStatus('Badan belum terlihat. Atur jarak HP sampai seluruh badan masuk layar', 'bad'); S.siapSejak = 0; return; }
+  const lm = raw.map((p) => ({ x: (mirror ? 1 - p.x : p.x) * W, y: p.y * H, visibility: p.visibility }));
+  const E = ITEM[opt.item].nilai(lm, par, opt.gender, S);
+  gambar(ctx, E.garis);
+  if (E.vis < 0.5) { if (!S.selesai) setStatus('Badan kurang jelas. Pastikan cahaya terang dan posisi HP sesuai panduan', 'bad'); S.siapSejak = 0; return; }
+  S.v = S.v == null ? E.v : S.v * 0.5 + E.v * 0.5;
+  if ($('#dbg').checked) $('#debug').innerHTML = E.dbg + '<br>visibilitas ' + E.vis.toFixed(2) + ' · ' + S.fps + ' fps · fase ' + S.fase;
+
+  if (!S.mulai) {
+    if (S.countdown) return;
+    if (E.ok && E.awal(S.v)) {
+      if (!S.siapSejak) S.siapSejak = now;
+      setStatus('Tahan posisi…', 'ok');
+      if (now - S.siapSejak > 1000) hitungMundur();
+    } else { S.siapSejak = 0; setStatus(E.siapMsg, 'bad'); }
+    return;
+  }
+  if (S.selesai) return;
+
+  if (S.fase === 'awal') {
+    if (E.puncak(S.v)) { S.fase = 'puncak'; S.repStart = now; S.repOk = E.ok && !S.alasanGerak; S.repReason = E.ok ? (S.alasanGerak || '') : E.alasan; S.maxProg = 0; S.alasanGerak = ''; }
+    else {
+      S.maxProg = Math.max(S.maxProg, E.progres(S.v));
+      if (!E.ok && E.progres(S.v) > 0.2) S.alasanGerak = E.alasan;
+      if (E.awal(S.v)) { if (S.maxProg > 0.45) catatTidakSah(S.alasanGerak || ITEM[opt.item].kurang); S.maxProg = 0; S.alasanGerak = ''; }
+      if (!E.ok) feedback(E.alasan, 'bad');
+    }
+  } else {
+    if (!E.ok && S.repOk) { S.repOk = false; S.repReason = E.alasan; }
+    if (E.awal(S.v)) {
+      S.fase = 'awal'; S.maxProg = 0;
+      if (now - S.repStart < 250) return;
+      if (S.repOk) catatSah(); else catatTidakSah(S.repReason || 'Posisi salah');
+    }
+  }
+}
+function gambar(ctx, garis) {
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const [pts, warna] of garis) {
+    ctx.strokeStyle = warna; ctx.lineWidth = 6; ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
+    pts.forEach((p) => { ctx.fillStyle = '#F3F2EC'; ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill(); });
+  }
+}
+
+/* ================= Waktu & hitungan ================= */
+function hitungMundur() {
+  S.countdown = true; const el = $('#countdown'); let n = 3;
+  el.style.display = 'flex'; el.textContent = n; bunyi(660, 0.15); setStatus('Bersiap', 'ok');
+  const t = setInterval(() => {
+    n--;
+    if (n > 0) { el.textContent = n; bunyi(660, 0.15); }
+    else { clearInterval(t); el.style.display = 'none'; bunyi(990, 0.35); S.countdown = false; S.mulai = performance.now(); S.fase = 'awal'; S.maxProg = 0; setStatus('Mulai!', 'ok'); }
+  }, 1000);
+}
+function tickWaktu(now) {
+  if (!S.mulai || S.selesai) return;
+  const det = (now - S.mulai) / 1000;
+  if (opt.mode === 'tes') {
+    const sisa = Math.max(0, 60 - det);
+    $('#time').textContent = '0:' + String(Math.ceil(sisa)).padStart(2, '0');
+    if (sisa <= 0) { bunyi(880, 0.25); setTimeout(() => bunyi(880, 0.25), 300); setTimeout(() => bunyi(880, 0.5), 600); try { navigator.vibrate && navigator.vibrate([300, 120, 300]); } catch (e) { } berhenti(true); }
+  } else { const d = Math.floor(det); $('#time').textContent = Math.floor(d / 60) + ':' + String(d % 60).padStart(2, '0'); }
+}
+function catatSah() {
+  S.count++; $('#count').textContent = S.count; bunyi(1046, 0.08);
+  feedback('Bagus! ' + S.count, 'ok');
+  if ($('#voice').checked && 'speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(String(S.count)); u.lang = 'id-ID'; u.rate = 1.3; speechSynthesis.speak(u); }
+}
+function catatTidakSah(alasan) {
+  S.bad++; S.alasan[alasan] = (S.alasan[alasan] || 0) + 1;
+  $('#bad-count').textContent = 'tidak sah: ' + S.bad; bunyi(220, 0.12);
+  feedback(alasan + ', tidak dihitung', 'bad');
+}
+let fbTimer = 0;
+function feedback(t, k) { if (S.lastFeedback === t) return; S.lastFeedback = t; setStatus(t, k); clearTimeout(fbTimer); fbTimer = setTimeout(() => { S.lastFeedback = ''; }, 1200); }
+function setStatus(t, k) { const el = $('#status'); if (el.textContent !== t) el.textContent = t; el.className = k || ''; }
+function bunyi(f, d) { try { if (!audio) return; const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime; o.frequency.value = f; o.connect(g); g.connect(audio.destination); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.start(t); o.stop(t + d + 0.02); } catch (e) { } }
+
+/* ================= Selesai ================= */
+function tutupKamera() {
+  cancelAnimationFrame(raf);
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) { }
+  $('#cam').classList.remove('on');
+}
+function berhenti(tampilkan) {
+  if (!S || S.selesai) { tutupKamera(); return; }
+  S.selesai = true;
+  const durasi = S.mulai ? Math.min(opt.mode === 'tes' ? 60 : 1e9, Math.round((performance.now() - S.mulai) / 1000)) : 0;
+  tutupKamera();
+  if (tampilkan && S.mulai) tampilHasil(durasi);
+}
+function nilai(n) {
+  const t = ITEM[opt.item].tabel[opt.gender];
+  if (n <= t[0][0]) return t[0][1];
+  if (n >= t[t.length - 1][0]) return t[t.length - 1][1];
+  for (let i = 1; i < t.length; i++) if (n <= t[i][0]) { const a = t[i - 1], b = t[i]; return Math.round(a[1] + (b[1] - a[1]) * (n - a[0]) / (b[0] - a[0])); }
+  return 0;
+}
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function tampilHasil(durasi) {
+  const it = ITEM[opt.item], nama = labelItem(), tes = opt.mode === 'tes' && durasi >= 58;
+  const alasan = Object.entries(S.alasan).sort((a, b) => b[1] - a[1]);
+  let h = '<div class="stack" style="gap:6px"><div class="sub">Pelatih Garjas · Prototipe</div><h1>Hasil ' + esc(nama.toLowerCase()) + '</h1></div>';
+  h += '<div class="hero"><span class="pill">Dihitung kamera' + (it.ujiCoba ? ' · uji coba' : '') + '</span><div class="soft">' + esc(nama) + ' sah' + (tes ? ' dalam 1 menit' : ' dalam ' + Math.floor(durasi / 60) + ':' + String(durasi % 60).padStart(2, '0')) + '</div>';
+  h += '<div class="res-num">' + S.count + '</div>';
+  if (tes) h += '<div class="soft" style="color:var(--hero-ink)">Perkiraan nilai ' + esc(nama.toLowerCase()) + ': <b>' + nilai(S.count) + '</b> (tabel ' + opt.gender.toLowerCase() + ', usia 18–25)</div>';
+  else if (opt.mode === 'tes') h += '<div class="soft">Sesi dihentikan sebelum 1 menit, jadi nilai tes tidak dihitung.</div>';
+  h += '</div><div class="card stack"><h2>Tidak dihitung: ' + S.bad + '</h2>';
+  h += alasan.length ? '<ul class="steps">' + alasan.map(([a, n]) => '<li>' + esc(a) + ': ' + n + ' kali</li>').join('') + '</ul>' : '<p class="small muted" style="margin:0">Semua gerakan sah. Mantap!</p>';
+  if (alasan.length) h += '<p class="small muted" style="margin:0">Tips: ' + esc(it.tips[alasan[0][0]] || 'pastikan posisi HP sesuai panduan dan seluruh badan terlihat.') + '</p>';
+  h += '</div><div class="note small">Ini versi prototipe. Hasilnya belum tersimpan ke catatan Pelatih Garjas. Kalau hitungan kamera meleset dari hitunganmu, beri tahu tim beserta posisi HP dan kondisi cahayanya.</div>';
+  h += '<div class="btns"><button class="btn" id="again">Ulangi</button><a class="btn ghost" href="./">Ke Pelatih Garjas</a></div>';
+  $('#setup').style.display = 'none';
+  const r = $('#result'); r.innerHTML = h; r.style.display = 'flex';
+  $('#again').addEventListener('click', () => { r.style.display = 'none'; $('#setup').style.display = 'flex'; window.scrollTo(0, 0); });
+  window.scrollTo(0, 0);
+}
+</script>
+</body>
+</html>

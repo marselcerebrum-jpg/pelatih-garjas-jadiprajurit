@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-6';
+  var VERSI = '2026.10.11-7';
   var BACKEND_DIHARAPKAN = '2026.10.11-5';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
@@ -339,7 +339,7 @@
     var h = '<div class="top"><div><h1>Catat latihan</h1><div class="sub">Isi hasil yang kamu lakukan hari ini. Item yang tidak dilatih boleh dikosongkan.</div></div></div>';
     h += viewTimer();
     h += '<div class="card stack"><div class="row"><h2>Lari 12 menit dengan GPS</h2><span class="tag">Prototipe</span></div><p class="small muted" style="margin:0">Jarak dihitung GPS dan diperiksa sensor langkah. Layar HP harus tetap menyala selama lari.</p><a class="btn ghost" href="lari.html">Coba sekarang</a></div>';
-    h += '<div class="card stack"><div class="row"><h2>Push-up dihitung kamera</h2><span class="tag">Prototipe</span></div><p class="small muted" style="margin:0">Taruh HP di samping badan, kamera menghitung push-up yang sah dan menolak gerakan yang salah.</p><a class="btn ghost" href="pushup.html">Coba sekarang</a></div>';
+    h += '<div class="card stack"><div class="row"><h2>Tes kamera</h2><span class="tag">Prototipe</span></div><p class="small muted" style="margin:0">Taruh HP sesuai panduan, kamera menghitung gerakan yang sah dan menolak gerakan yang salah.</p><div class="btns"><a class="btn ghost small" href="kamera.html?item=pushup">Push-up</a><a class="btn ghost small" href="kamera.html?item=situp">Sit-up</a><a class="btn ghost small" href="kamera.html?item=pullup">' + (gender() === 'Wanita' ? 'Chinning' : 'Pull-up') + '</a></div></div>';
     h += '<div class="card stack"><label class="f">Tanggal<input class="in" type="date" id="f-date" value="' + esc(draft.date) + '" max="' + todayStr() + '"></label>';
     ITEMS.forEach(function (it) {
       var v = draft.items[it.key], s = v != null ? score(it.key, v) : null;
