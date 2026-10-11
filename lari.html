@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F3A2A">
+<title>Lari 12 Menit GPS (Prototipe) – Pelatih Garjas</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#F3F2EC;--card:#FFFFFF;--ink:#17211B;--muted:#4B5550;--line:#E1DFD6;--line2:#ECEAE2;
+  --hero:#1F3A2A;--hero-ink:#F3F2EC;--hero-soft:#D9E3D4;--btn:#17211B;--btn-ink:#FFFFFF;
+  --field:#FFFFFF;--field-line:#C9C6BA;--good:#2F5D34;--good-soft:#E3EDDF;--warn:#9A4207;--warn-soft:#FBEFE3;--warn-ink:#5C2A06;--focus:#2563EB;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#101511;--card:#19201B;--ink:#ECEFEA;--muted:#A8B1AB;--line:#2B342E;--line2:#232B25;
+  --hero:#24402E;--hero-ink:#F1F4EF;--hero-soft:#C3D2BD;--btn:#ECEFEA;--btn-ink:#101511;
+  --field:#141A16;--field-line:#3A453E;--good:#8CCB86;--good-soft:#1E3322;--warn:#F2A766;--warn-soft:#3A2414;--warn-ink:#F6CFA8;--focus:#7AA7FF;color-scheme:dark;
+}}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Public Sans','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding:18px}
+h1{margin:0;font-family:'Archivo',sans-serif;font-weight:800;font-size:24px;line-height:1.15}
+h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
+.sub{font-size:13px;color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
+.warnbox{background:var(--warn-soft);color:var(--warn-ink);border-radius:18px;padding:16px;border:2px solid var(--warn)}
+.warnbox h2{color:var(--warn-ink)}
+.btn{min-height:50px;border-radius:13px;border:0;background:var(--btn);color:var(--btn-ink);font:700 16px 'Public Sans',sans-serif;padding:0 18px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--field-line)}
+.btn[disabled]{opacity:.5;cursor:default}
+.btns{display:flex;gap:8px;flex-wrap:wrap}.btns .btn{flex:1 1 auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{min-height:42px;padding:0 14px;border-radius:999px;border:1px solid var(--field-line);background:var(--card);color:var(--ink);font:600 14px 'Public Sans',sans-serif;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--hero);border-color:var(--hero);color:var(--hero-ink)}
+.f{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}
+.in{height:46px;border:1px solid var(--field-line);border-radius:12px;padding:0 12px;background:var(--field);font:500 15px 'Public Sans',sans-serif;color:var(--ink);width:100%}
+.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.muted{color:var(--muted)}.small{font-size:13px}.tiny{font-size:12px}
+.note{border-radius:14px;padding:11px 13px;font-size:14px;line-height:1.45;background:var(--line2)}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;font-weight:600;min-height:44px}
+.check input{width:22px;height:22px;flex:0 0 auto;margin-top:1px}
+/* Layar lari */
+#run{position:fixed;inset:0;background:#101511;color:#F3F2EC;display:none;flex-direction:column;z-index:10;padding:calc(14px + env(safe-area-inset-top,0px)) 18px calc(14px + env(safe-area-inset-bottom,0px))}
+#run.on{display:flex}
+.screen-on{display:flex;align-items:center;gap:8px;background:#9A4207;color:#fff;border-radius:12px;padding:9px 12px;font-weight:700;font-size:14px}
+.lbl{font-size:13px;color:#C3D2BD}
+.mega{font-family:'Archivo',sans-serif;font-weight:800;font-size:96px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.mid{font-family:'Archivo',sans-serif;font-weight:800;font-size:40px;line-height:1.05;font-variant-numeric:tabular-nums}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tile{background:#19201B;border-radius:16px;padding:12px 14px}
+.sig{display:flex;gap:12px;flex-wrap:wrap;font-size:13px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:5px;margin-right:6px;vertical-align:0}
+#run .btn{background:#F3F2EC;color:#101511}
+#run .btn.ghost{background:transparent;color:#F3F2EC;border-color:#3A453E}
+#alert{position:fixed;inset:0;background:rgba(16,21,17,.92);display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
+#alert.on{display:flex}
+#alert .box{background:var(--card);color:var(--ink);border-radius:20px;padding:20px;max-width:440px;display:flex;flex-direction:column;gap:12px}
+.hero{background:var(--hero);color:var(--hero-ink);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.hero .soft{color:var(--hero-soft);font-size:13px}
+.pill{display:inline-flex;align-items:center;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;background:var(--hero-ink);color:var(--hero);align-self:flex-start}
+.pill.bad{background:#F6CFA8;color:#5C2A06}
+.res-num{font-family:'Archivo',sans-serif;font-weight:800;font-size:72px;line-height:1;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap" id="setup">
+  <div class="stack">
+    <div class="stack" style="gap:6px">
+      <div class="sub"><a href="./" style="color:inherit">Pelatih Garjas</a> · Prototipe</div>
+      <h1>Lari 12 menit dengan GPS</h1>
+      <div class="sub">Jarak dihitung HP dari GPS dan diperiksa dengan sensor langkah, jadi hasilnya tidak bisa diketik sendiri.</div>
+    </div>
+
+    <div class="warnbox stack" role="note">
+      <h2>Layar HP harus tetap menyala selama lari</h2>
+      <p class="small" style="margin:0">Browser berhenti menghitung GPS begitu layar mati atau kamu pindah ke aplikasi lain. Kalau itu terjadi, <b>hasil tidak sah dan harus diulang</b>.</p>
+      <ul class="steps">
+        <li><b>Jangan tekan tombol power</b> selama lari.</li>
+        <li><b>Jangan buka aplikasi lain</b>, termasuk membalas WhatsApp.</li>
+        <li>Matikan mode hemat baterai, karena bisa mematikan GPS.</li>
+        <li>Pegang HP di tangan atau pakai armband. Boleh turunkan kecerahan layar supaya hemat baterai.</li>
+      </ul>
+      <label class="check"><input type="checkbox" id="paham"> <span>Saya mengerti layar harus menyala sampai 12 menit selesai.</span></label>
+    </div>
+
+    <div class="card stack">
+      <div class="f">Mode
+        <div class="chips" role="group" aria-label="Mode">
+          <button type="button" class="chip" data-mode="tes" aria-pressed="true">Tes 12 menit</button>
+          <button type="button" class="chip" data-mode="bebas" aria-pressed="false">Lari bebas</button>
+        </div>
+      </div>
+      <div class="f">Tabel nilai
+        <div class="chips" role="group" aria-label="Jenis kelamin">
+          <button type="button" class="chip" data-gender="Pria" aria-pressed="true">Pria</button>
+          <button type="button" class="chip" data-gender="Wanita" aria-pressed="false">Wanita</button>
+        </div>
+      </div>
+      <label class="f">Panjang lintasan (opsional, meter)<input class="in" type="number" inputmode="numeric" id="lintasan" placeholder="Misal 400 untuk stadion" min="100" max="2000"></label>
+      <label class="check" style="font-weight:500"><input type="checkbox" id="voice" checked> <span>Pengumuman suara setiap menit</span></label>
+      <div id="gps-state" class="note small">Sinyal GPS belum diperiksa.</div>
+      <div id="setup-msg" class="small" style="color:var(--warn)" role="alert"></div>
+      <button class="btn" id="start" disabled>Centang peringatan di atas dulu</button>
+      <p class="tiny muted" style="margin:0">Lokasi hanya dipakai di HP-mu untuk menghitung jarak. Rute tidak disimpan dan tidak dikirim ke mana pun.</p>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="result" style="display:none"></div>
+
+<div id="run" aria-live="polite">
+  <div class="screen-on"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Jangan matikan layar atau buka aplikasi lain</div>
+  <div style="flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;gap:18px">
+    <div><div class="lbl" id="t-lbl">Sisa waktu</div><div class="mega" id="t-val">12:00</div></div>
+    <div><div class="lbl">Jarak</div><div class="mega" id="d-val">0 m</div></div>
+    <div class="grid2">
+      <div class="tile"><div class="lbl">Pace</div><div class="mid" id="p-val">–</div><div class="lbl">menit/km</div></div>
+      <div class="tile"><div class="lbl" id="x-lbl">Perkiraan akhir</div><div class="mid" id="x-val">–</div><div class="lbl" id="x-sub">nilai –</div></div>
+    </div>
+    <div class="sig">
+      <span><span class="dot" id="gps-dot" style="background:#F2A766"></span><span id="gps-txt">GPS: menunggu</span></span>
+      <span><span class="dot" id="step-dot" style="background:#F2A766"></span><span id="step-txt">Langkah: –</span></span>
+      <span id="lap-txt"></span>
+    </div>
+    <div id="run-msg" class="lbl" style="min-height:20px"></div>
+  </div>
+  <div class="btns"><button class="btn ghost" id="cancel">Batal</button><button class="btn" id="stop">Selesai</button></div>
+</div>
+
+<div id="alert" role="alertdialog" aria-modal="true" aria-labelledby="alert-h">
+  <div class="box">
+    <h2 id="alert-h">Layar sempat mati</h2>
+    <p class="small" id="alert-p" style="margin:0"></p>
+    <div class="btns"><button class="btn" id="alert-ulang">Ulangi dari awal</button><button class="btn ghost" id="alert-lanjut">Lanjut sebagai latihan</button></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var TABEL = { Pria: [[1607, 0], [3507, 100]], Wanita: [[1530, 0], [2630, 100]] };
+  var DURASI_TES = 720;          // detik
+  var MAX_AKURASI = 25;          // meter; titik lebih buruk dibuang
+  var MAX_KEC_TITIK = 9;         // m/detik antar titik; lebih dari ini dianggap lompatan GPS
+  var MAX_KEC_LARI = 6.5;        // m/detik bertahan > 10 detik = tidak wajar untuk lari
+  var MIN_CADENCE = 110;         // langkah/menit saat bergerak cepat
+  var opt = { mode: 'tes', gender: 'Pria' };
+  var $ = function (s) { return document.querySelector(s); };
+  var watchId = null, wakeLock = null, audio = null, tickIv = null, gpsPreview = null;
+  var R = null;
+
+  /* ---------- Pengaturan awal ---------- */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    ['mode', 'gender'].forEach(function (k) {
+      if (b.dataset[k]) { opt[k] = b.dataset[k]; document.querySelectorAll('[data-' + k + ']').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }
+    });
+  });
+  $('#paham').addEventListener('change', function () {
+    var on = $('#paham').checked;
+    $('#start').disabled = !on;
+    $('#start').textContent = on ? 'Periksa GPS & mulai' : 'Centang peringatan di atas dulu';
+    if (on) cekGps();
+  });
+  $('#start').addEventListener('click', mulai);
+  $('#cancel').addEventListener('click', function () { if (confirm('Batalkan sesi lari ini?')) selesai(false); });
+  $('#stop').addEventListener('click', function () { if (opt.mode === 'bebas' || confirm('Hentikan sebelum 12 menit? Hasil tidak dihitung sebagai tes.')) selesai(true); });
+  $('#alert-ulang').addEventListener('click', function () { tutupAlert(); selesai(false); });
+  $('#alert-lanjut').addEventListener('click', function () { tutupAlert(); });
+
+  function cekGps() {
+    var st = $('#gps-state');
+    if (!navigator.geolocation) { st.textContent = 'Browser ini tidak mendukung GPS.'; return; }
+    st.textContent = 'Memeriksa sinyal GPS… izinkan akses lokasi bila diminta.';
+    if (gpsPreview != null) navigator.geolocation.clearWatch(gpsPreview);
+    gpsPreview = navigator.geolocation.watchPosition(function (p) {
+      var a = Math.round(p.coords.accuracy);
+      st.innerHTML = a <= 20 ? 'Sinyal GPS bagus (akurasi ±' + a + ' m). Siap mulai.' : 'Sinyal GPS masih lemah (±' + a + ' m). Pindah ke tempat terbuka dan tunggu sebentar.';
+    }, function (err) {
+      st.textContent = err.code === 1 ? 'Izin lokasi ditolak. Izinkan lokasi untuk situs ini di pengaturan browser.' : 'GPS belum mendapat sinyal. Coba di tempat terbuka.';
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  }
+
+  /* ---------- Mulai ---------- */
+  function mulai() {
+    var msg = $('#setup-msg'); msg.textContent = '';
+    if (!navigator.geolocation) { msg.textContent = 'Browser ini tidak mendukung GPS.'; return; }
+    try { var AC = window.AudioContext || window.webkitAudioContext; if (AC && !audio) audio = new AC(); if (audio && audio.state === 'suspended') audio.resume(); } catch (e) { }
+    if ('speechSynthesis' in window && $('#voice').checked) { var u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }
+    var izinGerak = (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function')
+      ? DeviceMotionEvent.requestPermission().catch(function () { return 'denied'; }) : Promise.resolve('granted');
+    izinGerak.then(function (st) {
+      if (gpsPreview != null) { navigator.geolocation.clearWatch(gpsPreview); gpsPreview = null; }
+      R = {
+        t0: 0, jalan: false, akhir: false, dist: 0, last: null, pts: 0, buang: 0, akurasi: [],
+        langkah: [], gerakAda: st === 'granted' && !!window.DeviceMotionEvent, gerakMasuk: false, accPrev: 0, langkahTerakhir: 0,
+        cepatSejak: 0, tanpaLangkahSejak: 0, flags: {}, hilang: 0, hilangMulai: 0, menitDiumumkan: 0, lintasan: Number($('#lintasan').value) || 0,
+        kecSekarang: 0, gpsBaik: false
+      };
+      $('#t-lbl').textContent = opt.mode === 'tes' ? 'Sisa waktu' : 'Durasi';
+      $('#t-val').textContent = opt.mode === 'tes' ? '12:00' : '0:00';
+      $('#x-lbl').textContent = opt.mode === 'tes' ? 'Perkiraan akhir' : 'Kecepatan';
+      $('#d-val').textContent = '0 m'; $('#p-val').textContent = '–'; $('#x-val').textContent = '–'; $('#x-sub').textContent = opt.mode === 'tes' ? 'nilai –' : 'km/jam';
+      $('#run').classList.add('on');
+      $('#run-msg').textContent = 'Menunggu sinyal GPS yang cukup akurat…';
+      jagaLayar();
+      if (R.gerakAda) window.addEventListener('devicemotion', onMotion);
+      watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+      tickIv = setInterval(tick, 250);
+    });
+  }
+
+  function jagaLayar() {
+    try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (w) { wakeLock = w; }, function () { }); else $('#run-msg').textContent = 'HP-mu tidak mendukung penjaga layar otomatis. Atur kunci layar otomatis ke waktu yang lama sebelum mulai.'; } catch (e) { }
+  }
+
+  /* ---------- Layar mati / pindah aplikasi ---------- */
+  document.addEventListener('visibilitychange', function () {
+    if (!R || R.akhir) return;
+    if (document.hidden) { R.hilangMulai = Date.now(); }
+    else {
+      jagaLayar();
+      if (R.hilangMulai) {
+        var det = Math.round((Date.now() - R.hilangMulai) / 1000);
+        R.hilang += det; R.hilangMulai = 0;
+        if (R.jalan) {
+          R.flags.layar = 'Layar mati atau aplikasi ditinggalkan selama ' + det + ' detik';
+          R.last = null;
+          bukaAlert(det);
+        }
+      }
+    }
+  });
+  function bukaAlert(det) {
+    $('#alert-p').textContent = 'Selama ' + det + ' detik layar mati atau kamu membuka aplikasi lain, jadi jarakmu tidak terhitung. ' + (opt.mode === 'tes' ? 'Hasil tes ini tidak sah. Ulangi dari awal untuk mendapat hasil resmi, atau lanjutkan sebagai latihan biasa.' : 'Jarak selama jeda itu tidak masuk.');
+    $('#alert').classList.add('on'); bunyi(220, 0.4); getar([400, 150, 400]);
+  }
+  function tutupAlert() { $('#alert').classList.remove('on'); }
+
+  /* ---------- GPS ---------- */
+  function jarak(a, b) {
+    var Rb = 6371000, toR = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * toR, dLon = (b.lon - a.lon) * toR;
+    var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * Rb * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  }
+  function onPos(p) {
+    if (!R || R.akhir) return;
+    var c = p.coords, acc = c.accuracy, now = p.timestamp || Date.now();
+    var gpsOk = acc <= MAX_AKURASI;
+    $('#gps-dot').style.background = acc <= 12 ? '#8CCB86' : gpsOk ? '#F2B27A' : '#E05A3A';
+    $('#gps-txt').textContent = 'GPS: ±' + Math.round(acc) + ' m';
+    if (!R.jalan) {
+      if (gpsOk) { R.gpsBaik = true; hitungMundur(); }
+      return;
+    }
+    if (!gpsOk || document.hidden) { R.buang++; return; }
+    var titik = { lat: c.latitude, lon: c.longitude, t: now };
+    if (R.last) {
+      var d = jarak(R.last, titik), dt = (now - R.last.t) / 1000;
+      if (dt <= 0) return;
+      var v = d / dt;
+      if (v > MAX_KEC_TITIK) { R.buang++; return; }
+      if (d >= 1.5) { R.dist += d; R.last = titik; R.kecSekarang = v; }
+    } else R.last = titik;
+    R.pts++; R.akurasi.push(acc);
+  }
+  function onPosErr(err) {
+    if (err.code === 1) { $('#run-msg').textContent = 'Izin lokasi ditolak. Lari tidak bisa dihitung.'; selesai(false); }
+    else $('#run-msg').textContent = 'Sinyal GPS hilang. Usahakan tetap di tempat terbuka.';
+  }
+
+  /* ---------- Sensor langkah ---------- */
+  function onMotion(e) {
+    var a = e.accelerationIncludingGravity; if (!a || a.x == null) return;
+    R.gerakMasuk = true;
+    var mag = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+    var now = Date.now();
+    // Puncak hentakan langkah: magnitudo melewati ambang dari bawah, jarak antar langkah minimal 0,25 detik
+    if (mag > 13 && R.accPrev <= 13 && now - R.langkahTerakhir > 250) { R.langkah.push(now); R.langkahTerakhir = now; }
+    R.accPrev = mag;
+  }
+  function cadence() {
+    var now = Date.now(), batas = now - 10000;
+    while (R.langkah.length && R.langkah[0] < batas) R.langkah.shift();
+    return R.langkah.length * 6;
+  }
+
+  /* ---------- Waktu & pengecekan ---------- */
+  function hitungMundur() {
+    if (R.mundur) return; R.mundur = true;
+    var n = 3; $('#run-msg').textContent = 'GPS siap. Mulai dalam ' + n + '…'; bunyi(660, 0.15);
+    var iv = setInterval(function () {
+      n--;
+      if (n > 0) { $('#run-msg').textContent = 'Mulai dalam ' + n + '…'; bunyi(660, 0.15); }
+      else { clearInterval(iv); R.jalan = true; R.t0 = Date.now(); R.last = null; bunyi(990, 0.4); getar(200); ucap('Mulai'); $('#run-msg').textContent = ''; }
+    }, 1000);
+  }
+  function fmtW(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  function fmtM(m) { return Math.round(m).toLocaleString('id-ID') + ' m'; }
+  function nilai(m) { var t = TABEL[opt.gender]; if (m <= t[0][0]) return 0; if (m >= t[1][0]) return 100; return Math.round((m - t[0][0]) / (t[1][0] - t[0][0]) * 100); }
+  function tick() {
+    if (!R || !R.jalan || R.akhir) return;
+    var det = (Date.now() - R.t0) / 1000 - 0;
+    var aktif = Math.max(1, det);
+    $('#t-val').textContent = opt.mode === 'tes' ? fmtW(DURASI_TES - det) : fmtW(det);
+    $('#d-val').textContent = fmtM(R.dist);
+    if (R.dist > 50) { var pace = aktif / (R.dist / 1000); $('#p-val').textContent = fmtW(pace); }
+    if (opt.mode === 'tes') {
+      if (det > 30 && R.dist > 50) { var proyeksi = R.dist / det * DURASI_TES; $('#x-val').textContent = fmtM(proyeksi); $('#x-sub').textContent = 'nilai ±' + nilai(proyeksi); }
+    } else { $('#x-val').textContent = (R.dist / aktif * 3.6).toFixed(1); }
+    if (R.lintasan) $('#lap-txt').textContent = '≈ ' + (R.dist / R.lintasan).toFixed(1) + ' putaran';
+
+    // Pengecekan langkah dan kecepatan
+    var cad = R.gerakAda && R.gerakMasuk ? cadence() : null;
+    $('#step-dot').style.background = cad == null ? '#9AA59E' : cad >= MIN_CADENCE ? '#8CCB86' : '#F2A766';
+    $('#step-txt').textContent = cad == null ? 'Langkah: sensor tidak tersedia' : 'Langkah: ' + cad + '/menit';
+    var kecRata = det > 20 ? R.dist / det : 0;
+    var now = Date.now();
+    if (R.kecSekarang > MAX_KEC_LARI) { if (!R.cepatSejak) R.cepatSejak = now; if (now - R.cepatSejak > 10000) R.flags.cepat = 'Kecepatan di atas batas wajar manusia lebih dari 10 detik'; } else R.cepatSejak = 0;
+    if (cad != null && R.kecSekarang > 2 && cad < MIN_CADENCE * 0.6) { if (!R.tanpaLangkahSejak) R.tanpaLangkahSejak = now; if (now - R.tanpaLangkahSejak > 20000) R.flags.langkah = 'Bergerak cepat tanpa irama langkah lari (kemungkinan naik kendaraan)'; } else R.tanpaLangkahSejak = 0;
+    if (R.flags.cepat || R.flags.langkah) $('#run-msg').textContent = 'Terdeteksi pergerakan tidak wajar. Hasil akan diberi tanda.';
+
+    // Pengumuman per menit
+    var menit = Math.floor(det / 60);
+    if (menit > R.menitDiumumkan && menit > 0) {
+      R.menitDiumumkan = menit; bunyi(880, 0.12);
+      if (opt.mode === 'tes') ucap(menit === 11 ? 'Satu menit lagi. ' + Math.round(R.dist) + ' meter.' : 'Menit ' + menit + ', ' + Math.round(R.dist) + ' meter.');
+      else ucap(menit + ' menit, ' + Math.round(R.dist) + ' meter.');
+    }
+    if (opt.mode === 'tes' && det >= DURASI_TES) { bunyi(880, 0.3); setTimeout(function () { bunyi(880, 0.3); }, 350); setTimeout(function () { bunyi(1046, 0.6); }, 700); getar([400, 150, 400, 150, 700]); ucap('Waktu habis.'); selesai(true); }
+  }
+
+  /* ---------- Selesai ---------- */
+  function hentikanSensor() {
+    clearInterval(tickIv); tickIv = null;
+    if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    window.removeEventListener('devicemotion', onMotion);
+    try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) { }
+    $('#run').classList.remove('on');
+  }
+  function selesai(tampil) {
+    if (!R || R.akhir) return;
+    R.akhir = true;
+    var det = R.jalan ? Math.min(opt.mode === 'tes' ? DURASI_TES : 1e9, Math.round((Date.now() - R.t0) / 1000)) : 0;
+    hentikanSensor();
+    if (tampil && R.jalan) tampilHasil(det);
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function tampilHasil(det) {
+    var tesPenuh = opt.mode === 'tes' && det >= DURASI_TES - 2;
+    var flags = Object.keys(R.flags).map(function (k) { return R.flags[k]; });
+    if (!R.gerakAda || !R.gerakMasuk) flags.push('Sensor langkah tidak tersedia, sehingga irama lari tidak bisa diperiksa');
+    var akurasiRata = R.akurasi.length ? R.akurasi.reduce(function (a, b) { return a + b; }, 0) / R.akurasi.length : null;
+    if (R.pts && R.buang / (R.pts + R.buang) > 0.3) flags.push('Banyak titik GPS dibuang karena sinyal lemah');
+    var sah = tesPenuh && !R.flags.layar && !R.flags.cepat && !R.flags.langkah;
+    var h = '<div class="stack"><div class="stack" style="gap:6px"><div class="sub">Pelatih Garjas · Prototipe</div><h1>Hasil lari</h1></div>';
+    h += '<div class="hero"><span class="pill' + (sah ? '' : ' bad') + '">' + (sah ? 'Terverifikasi GPS' + (R.gerakMasuk ? ' + langkah' : '') : (opt.mode === 'tes' ? 'Tidak sah sebagai tes' : 'Latihan')) + '</span>';
+    h += '<div class="soft">Jarak dalam ' + fmtW(det) + '</div><div class="res-num">' + fmtM(R.dist) + '</div>';
+    if (tesPenuh) h += '<div class="soft" style="color:var(--hero-ink)">Perkiraan nilai lari 12 menit: <b>' + nilai(R.dist) + '</b> (tabel ' + opt.gender.toLowerCase() + ', usia 18–25)</div>';
+    h += '<div class="soft">Pace rata-rata ' + (R.dist > 50 ? fmtW(det / (R.dist / 1000)) + ' menit/km' : '–') + (R.lintasan ? ' · ≈ ' + (R.dist / R.lintasan).toFixed(1) + ' putaran lintasan ' + R.lintasan + ' m' : '') + '</div></div>';
+    h += '<div class="card stack"><h2>Pemeriksaan</h2><ul class="steps">';
+    h += '<li>Layar tetap menyala: ' + (R.flags.layar ? '<b style="color:var(--warn)">tidak</b> (' + esc(R.flags.layar) + ')' : '<b style="color:var(--good)">ya</b>') + '</li>';
+    h += '<li>Akurasi GPS rata-rata: ' + (akurasiRata ? '±' + Math.round(akurasiRata) + ' m' : '–') + '</li>';
+    flags.filter(function (f) { return f !== R.flags.layar; }).forEach(function (f) { h += '<li style="color:var(--warn)">' + esc(f) + '</li>'; });
+    if (!tesPenuh && opt.mode === 'tes') h += '<li style="color:var(--warn)">Dihentikan sebelum 12 menit</li>';
+    h += '</ul></div>';
+    h += '<div class="note small">Ini versi prototipe. Hasilnya belum tersimpan ke catatan Pelatih Garjas. Untuk uji akurasi, bandingkan dengan jarak yang dihitung manual dari jumlah putaran lintasan.</div>';
+    h += '<div class="btns"><button class="btn" id="again">Ulangi</button><a class="btn ghost" href="./">Ke Pelatih Garjas</a></div></div>';
+    $('#setup').style.display = 'none';
+    var r = $('#result'); r.innerHTML = h; r.style.display = 'block';
+    $('#again').addEventListener('click', function () { r.style.display = 'none'; $('#setup').style.display = 'block'; window.scrollTo(0, 0); });
+    window.scrollTo(0, 0);
+  }
+
+  /* ---------- Suara & getar ---------- */
+  function bunyi(f, d) { try { if (!audio) return; var o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime; o.frequency.value = f; o.connect(g); g.connect(audio.destination); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.start(t); o.stop(t + d + 0.02); } catch (e) { } }
+  function getar(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) { } }
+  function ucap(t) { if (!$('#voice').checked || !('speechSynthesis' in window)) return; try { speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(t); u.lang = 'id-ID'; u.rate = 1.1; speechSynthesis.speak(u); } catch (e) { } }
+  window.addEventListener('beforeunload', function (e) { if (R && R.jalan && !R.akhir) { e.preventDefault(); e.returnValue = ''; } });
+})();
+</script>
+</body>
+</html>
