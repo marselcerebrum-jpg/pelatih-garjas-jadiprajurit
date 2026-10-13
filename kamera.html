@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1F3A2A">
-<title>Tes Kamera (Prototipe) – JadiPrajurit</title>
+<title>Tes Kamera – SIGAP JadiPrajurit</title>
 <link rel="icon" type="image/png" sizes="64x64" href="assets/icon-64.png">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -56,7 +56,7 @@ h2{margin:0;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px}
 #status{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;max-width:calc(100% - 28px);background:rgba(16,21,17,.8);color:#F3F2EC;border-radius:999px;padding:10px 18px;font-weight:700;font-size:15px;text-align:center}
 #status.ok{background:#2F5D34}#status.bad{background:#9A4207}
 #countdown{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-family:'Archivo',sans-serif;font-weight:800;font-size:160px;color:#F3F2EC;text-shadow:0 4px 30px rgba(0,0,0,.6);pointer-events:none}
-#debug{position:absolute;left:12px;bottom:70px;background:rgba(16,21,17,.78);color:#F3F2EC;border-radius:12px;padding:8px 10px;font-size:12px;line-height:1.5;display:none;font-variant-numeric:tabular-nums}
+#debug{position:absolute;left:12px;top:calc(130px + env(safe-area-inset-top,0px));background:rgba(16,21,17,.78);color:#F3F2EC;border-radius:12px;padding:8px 10px;font-size:12px;line-height:1.5;display:none;font-variant-numeric:tabular-nums}
 .bar{display:flex;gap:8px;padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px));background:#101511}
 .bar .btn{flex:1 1 0;background:#F3F2EC;color:#101511}
 .bar .btn.ghost{background:transparent;color:#F3F2EC;border-color:#3A453E}
@@ -78,7 +78,7 @@ input[type=range]{width:100%}
 <div class="wrap" id="app">
   <div class="stack" id="setup">
     <div class="stack" style="gap:6px">
-      <a class="brandx" href="./" aria-label="Kembali ke SIGAP JadiPrajurit"><img class="logo-terang" src="assets/logo-jadiprajurit.png" alt="JadiPrajurit"><img class="logo-gelap" src="assets/logo-jadiprajurit-terang.png" alt="JadiPrajurit"><span>SIGAP · Prototipe</span></a>
+      <a class="brandx" href="./" aria-label="Kembali ke SIGAP JadiPrajurit"><img class="logo-terang" src="assets/logo-jadiprajurit.png" alt="JadiPrajurit"><img class="logo-gelap" src="assets/logo-jadiprajurit-terang.png" alt="JadiPrajurit"><span>SIGAP · Tes kamera</span></a>
       <h1>Tes kamera</h1>
       <div class="sub">Kamera mengenali gerakanmu dan hanya menghitung gerakan yang sah. Video tidak direkam dan tidak dikirim ke mana pun.</div>
     </div>
@@ -108,7 +108,7 @@ input[type=range]{width:100%}
         </div>
       </div>
       <label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;font-weight:600"><input type="checkbox" id="voice" checked style="width:22px;height:22px"> Sebutkan hitungan dengan suara</label>
-      <label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;font-weight:600"><input type="checkbox" id="dbg" style="width:22px;height:22px"> Tampilkan detail sudut (untuk penguji)</label>
+      <label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;font-weight:600"><input type="checkbox" id="detail-sudut" style="width:22px;height:22px"> Tampilkan detail sudut (untuk penguji)</label>
       <div id="setup-msg" class="small" style="color:var(--warn)" role="alert"></div>
       <button class="btn" id="start">Mulai kamera</button>
     </div>
@@ -139,11 +139,16 @@ input[type=range]{width:100%}
     <button class="btn" id="finish">Selesai</button>
   </div>
 </div>
-<video id="video" playsinline muted style="display:none"></video>
+<video id="video" playsinline muted autoplay style="position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none"></video>
 
 <script type="module">
 const MP_VER = '0.10.21';
-const MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+// Mesin dan model disimpan di situs sendiri supaya tidak bergantung pada server luar; CDN hanya cadangan.
+const SUMBER = [
+  { bundle: new URL('vendor/mediapipe/vision_bundle.mjs', location.href).href, wasm: new URL('vendor/mediapipe/wasm', location.href).href, model: new URL('vendor/mediapipe/pose_landmarker_lite.task', location.href).href },
+  { bundle: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/vision_bundle.mjs', wasm: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/wasm', model: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task' }
+];
+let tahapGagal = '';
 const $ = (s) => document.querySelector(s);
 
 /* ================= Geometri ================= */
@@ -269,7 +274,9 @@ const ITEM = {
 
 /* ================= Pilihan ================= */
 const q = new URLSearchParams(location.search);
-const opt = { item: ITEM[q.get('item')] ? q.get('item') : 'pushup', gender: 'Pria', mode: 'tes', facing: 'user' };
+let sesi = null;
+try { sesi = JSON.parse(localStorage.getItem('pelatih-garjas-sesi-v1') || 'null'); } catch (e) { }
+const opt = { item: ITEM[q.get('item')] ? q.get('item') : 'pushup', gender: sesi && sesi.profil && sesi.profil.gender === 'Wanita' ? 'Wanita' : 'Pria', mode: 'tes', facing: 'user' };
 let par = {};
 function resetParam() { par = {}; const ps = ITEM[opt.item].param; for (const k in ps) par[k] = ps[k].def; }
 function labelItem() { const it = ITEM[opt.item]; return opt.gender === 'Wanita' && it.namaW ? it.namaW : it.nama; }
@@ -283,9 +290,9 @@ function renderSetup() {
   $('#aturan').innerHTML = it.aturan(par, opt.gender).map((t) => '<li>' + t + '</li>').join('');
   const ps = it.param;
   $('#tune').innerHTML = Object.keys(ps).map((k) => '<label class="f">' + ps[k].label + ': <span id="v-' + k + '">' + par[k] + '</span>' + ps[k].unit + '<input type="range" data-param="' + k + '" min="' + ps[k].min + '" max="' + ps[k].max + '" value="' + par[k] + '"></label>').join('');
-  $('#tune').style.display = $('#dbg').checked ? 'flex' : 'none';
+  $('#tune').style.display = $('#detail-sudut').checked ? 'flex' : 'none';
   $('#start').textContent = 'Mulai ' + labelItem().toLowerCase();
-  document.title = 'Tes Kamera ' + labelItem() + ' (Prototipe) – SIGAP JadiPrajurit';
+  document.title = 'Tes Kamera ' + labelItem() + ' – SIGAP JadiPrajurit';
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
@@ -300,7 +307,7 @@ document.addEventListener('input', (e) => {
   par[k] = Number(e.target.value); $('#v-' + k).textContent = par[k];
   $('#aturan').innerHTML = ITEM[opt.item].aturan(par, opt.gender).map((t) => '<li>' + t + '</li>').join('');
 });
-$('#dbg').addEventListener('change', () => { $('#tune').style.display = $('#dbg').checked ? 'flex' : 'none'; if ($('#dbg').checked) $('#aturan-box').open = true; });
+$('#detail-sudut').addEventListener('change', () => { $('#tune').style.display = $('#detail-sudut').checked ? 'flex' : 'none'; if ($('#detail-sudut').checked) $('#aturan-box').open = true; });
 resetParam(); renderSetup();
 
 /* ================= Kamera & model ================= */
@@ -311,14 +318,24 @@ $('#finish').addEventListener('click', () => berhenti(true));
 
 async function siapkanModel() {
   if (landmarker) return landmarker;
-  const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/vision_bundle.mjs');
-  const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/wasm');
-  const buat = (delegate) => vision.PoseLandmarker.createFromOptions(files, {
-    baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numPoses: 1,
-    minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5
-  });
-  try { landmarker = await buat('GPU'); } catch (e) { landmarker = await buat('CPU'); }
-  return landmarker;
+  let galat = null;
+  for (const src of SUMBER) {
+    try {
+      tahapGagal = 'memuat mesin';
+      const vision = await import(src.bundle);
+      tahapGagal = 'memuat wasm';
+      const files = await vision.FilesetResolver.forVisionTasks(src.wasm);
+      tahapGagal = 'memuat model';
+      const buat = (delegate) => vision.PoseLandmarker.createFromOptions(files, {
+        baseOptions: { modelAssetPath: src.model, delegate }, runningMode: 'VIDEO', numPoses: 1,
+        minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5
+      });
+      try { landmarker = await buat('GPU'); landmarker.__mode = 'GPU'; } catch (e) { landmarker = await buat('CPU'); landmarker.__mode = 'CPU'; }
+      tahapGagal = '';
+      return landmarker;
+    } catch (e) { galat = e; console.warn('Sumber model gagal:', src.bundle, tahapGagal, e && (e.message || e)); }
+  }
+  throw galat || new Error('Model gagal dimuat');
 }
 
 async function mulai() {
@@ -340,7 +357,7 @@ async function mulai() {
     $('#count').textContent = '0'; $('#bad-count').textContent = 'tidak sah: 0'; $('#count-lbl').textContent = labelItem() + ' sah';
     $('#time').textContent = opt.mode === 'tes' ? '1:00' : '0:00';
     $('#time-lbl').textContent = opt.mode === 'tes' ? 'Sisa waktu' : 'Durasi';
-    $('#debug').style.display = $('#dbg').checked ? 'block' : 'none';
+    $('#debug').style.display = $('#detail-sudut').checked ? 'block' : 'none';
     $('#cam').classList.add('on');
     setStatus('Ambil posisi awal, seluruh badan terlihat', '');
     loop();
@@ -348,7 +365,7 @@ async function mulai() {
     const n = e && e.name;
     msg.textContent = n === 'NotAllowedError' ? 'Izin kamera ditolak. Buka pengaturan situs di browser, izinkan kamera, lalu coba lagi.'
       : n === 'NotFoundError' ? 'Kamera tidak ditemukan di perangkat ini.'
-      : 'Pengenal gerakan gagal dimuat. Periksa koneksi internet lalu coba lagi.';
+      : 'Pengenal gerakan gagal dimuat (' + (tahapGagal || 'tidak diketahui') + '). Periksa koneksi internet lalu coba lagi. Kalau tetap gagal, kirim tangkapan layar pesan ini ke admin. Detail: ' + String(e && (e.message || e)).slice(0, 120);
     tutupKamera();
   } finally {
     btn.disabled = false; btn.textContent = 'Mulai ' + labelItem().toLowerCase();
@@ -377,7 +394,7 @@ function loop() {
   gambar(ctx, E.garis);
   if (E.vis < 0.5) { if (!S.selesai) setStatus('Badan kurang jelas. Pastikan cahaya terang dan posisi HP sesuai panduan', 'bad'); S.siapSejak = 0; return; }
   S.v = S.v == null ? E.v : S.v * 0.5 + E.v * 0.5;
-  if ($('#dbg').checked) $('#debug').innerHTML = E.dbg + '<br>visibilitas ' + E.vis.toFixed(2) + ' · ' + S.fps + ' fps · fase ' + S.fase;
+  if ($('#detail-sudut').checked) $('#debug').innerHTML = E.dbg + '<br>visibilitas ' + E.vis.toFixed(2) + ' · ' + S.fps + ' fps · fase ' + S.fase;
 
   if (!S.mulai) {
     if (S.countdown) return;
@@ -474,19 +491,28 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 function tampilHasil(durasi) {
   const it = ITEM[opt.item], nama = labelItem(), tes = opt.mode === 'tes' && durasi >= 58;
   const alasan = Object.entries(S.alasan).sort((a, b) => b[1] - a[1]);
-  let h = '<div class="stack" style="gap:6px"><div class="sub">JadiPrajurit · SIGAP · Prototipe</div><h1>Hasil ' + esc(nama.toLowerCase()) + '</h1></div>';
-  h += '<div class="hero"><span class="pill">Dihitung kamera' + (it.ujiCoba ? ' · uji coba' : '') + '</span><div class="soft">' + esc(nama) + ' sah' + (tes ? ' dalam 1 menit' : ' dalam ' + Math.floor(durasi / 60) + ':' + String(durasi % 60).padStart(2, '0')) + '</div>';
+  let h = '<div class="stack" style="gap:6px"><div class="sub">JadiPrajurit · SIGAP · Tes kamera</div><h1>Hasil ' + esc(nama.toLowerCase()) + '</h1></div>';
+  h += '<div class="hero"><span class="pill">Terverifikasi kamera' + (it.ujiCoba ? ' · uji coba' : '') + '</span><div class="soft">' + esc(nama) + ' sah' + (tes ? ' dalam 1 menit' : ' dalam ' + Math.floor(durasi / 60) + ':' + String(durasi % 60).padStart(2, '0')) + '</div>';
   h += '<div class="res-num">' + S.count + '</div>';
   if (tes) h += '<div class="soft" style="color:var(--hero-ink)">Perkiraan nilai ' + esc(nama.toLowerCase()) + ': <b>' + nilai(S.count) + '</b> (tabel ' + opt.gender.toLowerCase() + ', usia 18–25)</div>';
   else if (opt.mode === 'tes') h += '<div class="soft">Sesi dihentikan sebelum 1 menit, jadi nilai tes tidak dihitung.</div>';
   h += '</div><div class="card stack"><h2>Tidak dihitung: ' + S.bad + '</h2>';
   h += alasan.length ? '<ul class="steps">' + alasan.map(([a, n]) => '<li>' + esc(a) + ': ' + n + ' kali</li>').join('') + '</ul>' : '<p class="small muted" style="margin:0">Semua gerakan sah. Mantap!</p>';
   if (alasan.length) h += '<p class="small muted" style="margin:0">Tips: ' + esc(it.tips[alasan[0][0]] || 'pastikan posisi HP sesuai panduan dan seluruh badan terlihat.') + '</p>';
-  h += '</div><div class="note small">Ini versi prototipe. Hasilnya belum tersimpan ke catatan SIGAP. Kalau hitungan kamera meleset dari hitunganmu, beri tahu tim beserta posisi HP dan kondisi cahayanya.</div>';
-  h += '<div class="btns"><button class="btn" id="again">Ulangi</button><a class="btn ghost" href="./">Kembali ke SIGAP</a></div>';
+  h += '</div>';
+  const bisaSimpan = tes && opt.mode === 'tes';
+  if (bisaSimpan) h += '<button class="btn" id="simpan">Simpan ke catatan SIGAP</button>';
+  else h += '<div class="note small">Hanya hasil mode <b>Tes 1 menit</b> yang dijalankan sampai selesai yang bisa disimpan ke catatan.</div>';
+  h += '<div class="note small">Kalau hitungan kamera meleset dari hitunganmu, beri tahu admin beserta posisi HP dan kondisi cahayanya.</div>';
+  h += '<div class="btns"><button class="btn ghost" id="again">Ulangi</button><a class="btn ghost" href="./">Kembali ke SIGAP</a></div>';
   $('#setup').style.display = 'none';
   const r = $('#result'); r.innerHTML = h; r.style.display = 'flex';
   $('#again').addEventListener('click', () => { r.style.display = 'none'; $('#setup').style.display = 'flex'; window.scrollTo(0, 0); });
+  const sb = $('#simpan');
+  if (sb) sb.addEventListener('click', () => {
+    try { localStorage.setItem('pelatih-garjas-kirim-v1', JSON.stringify({ key: opt.item, nilai: S.count, sumber: 'kamera', gender: opt.gender, waktu: Date.now() })); } catch (e) { }
+    location.href = './';
+  });
   window.scrollTo(0, 0);
 }
 </script>

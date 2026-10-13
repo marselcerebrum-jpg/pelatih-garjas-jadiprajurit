@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-12** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-13** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -26,9 +26,10 @@ Aplikasi ini tidak memakai AI. Semua nilai dihitung dari tab **Standar Nilai** d
 
 ```
 index.html
-kamera.html         ← prototipe tes kamera (push-up, sit-up, pull-up/chinning)
+kamera.html         ← tes kamera (push-up, sit-up, pull-up/chinning)
+vendor/mediapipe/   ← mesin dan model pengenal pose untuk tes kamera
 pushup.html         ← pengalih ke kamera.html?item=pushup
-lari.html           ← prototipe lari 12 menit dengan GPS
+lari.html           ← lari 12 menit dengan GPS
 css/style.css
 js/config.js        ← URL Apps Script (diisi sekali, tidak ikut paket update)
 js/nilai.js         ← rumus nilai dan penyusun program latihan
@@ -88,6 +89,23 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 **Casis wajib menyimpan nomor admin.** Setelah daftar, kartu kontak admin langsung terbuka otomatis di HP casis. Casis tidak bisa masuk ke aplikasi sebelum mencentang "Saya sudah menyimpan nomor admin". Konfirmasinya tercatat di kolom **Simpan Nomor Admin** pada tab Peserta. Casis yang mendaftar sebelum fitur ini juga akan diminta langkah yang sama saat membuka aplikasi.
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
+
+## Tabel nilai per matra
+
+Tab **Standar Nilai** punya kolom **Matra** berisi `Semua`, `AD`, `AL`, atau `AU`.
+
+- Baris `Semua` adalah tabel umum yang dipakai semua matra.
+- Untuk membuat tabel khusus, tambahkan baris dengan matra tertentu, misalnya `Pria | Push-up | 10 | 0 | AL` dan `Pria | Push-up | 30 | 100 | AL`. Setiap tabel khusus minimal 2 baris per item.
+- Item yang belum punya tabel khusus otomatis memakai tabel `Semua`. Peserta memakai tabel sesuai matra di profilnya, dan halaman Catat menuliskan tabel mana yang sedang dipakai.
+- Target nilai bawaan adalah **100** (kunci `target_default` di tab Pengaturan).
+
+## Tes kamera dan lari GPS
+
+Kedua fitur sudah bisa dipakai dan hasilnya bisa disimpan ke catatan:
+- **Tes kamera (`kamera.html`):** push-up, sit-up, dan pull-up/chinning dihitung kamera. Hasil mode *Tes 1 menit* yang selesai penuh bisa disimpan; isian di Catat diberi tanda **Terverifikasi kamera** dan keterangannya ikut tersimpan.
+- **Lari GPS (`lari.html`):** hasil Tes 12 menit yang sah bisa disimpan dengan tanda **Terverifikasi GPS**.
+- Bila angka yang terisi diubah manual, tanda terverifikasi otomatis hilang.
+- Mesin pengenal pose (MediaPipe) dan modelnya disimpan di folder `vendor/mediapipe/` sehingga tidak bergantung pada server luar. Lisensi Apache 2.0 dari Google ada di `vendor/mediapipe/LISENSI.txt`.
 
 ## Syarat pendaftaran
 
