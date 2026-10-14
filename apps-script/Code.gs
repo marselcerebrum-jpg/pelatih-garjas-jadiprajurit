@@ -12,7 +12,7 @@
  * Version: New version → Deploy. JANGAN pilih "New deployment", karena URL-nya berubah.
  */
 
-var VERSI_BACKEND = '2026.10.11-6';
+var VERSI_BACKEND = '2026.10.11-8';
 var TZ = 'Asia/Jakarta';
 
 var TAB = {
@@ -34,7 +34,8 @@ var KOLOM_PESERTA = ['ID Peserta', 'Tanggal Daftar', 'Nama Lengkap', 'Email Jadi
 var KOLOM_CATATAN = ['ID Catatan', 'Waktu Input', 'Email JadiPrajurit', 'Nama Lengkap', 'Tanggal',
   'Lari 12 Menit (m)', 'Pull-up/Chinning (kali)', 'Sit-up (kali)', 'Push-up (kali)', 'Shuttle Run (detik)',
   'Simulasi', 'Nilai Jasmani', 'Catatan'];
-var KOLOM_STANDAR = ['Jenis Kelamin', 'Item', 'Hasil', 'Nilai'];
+var KOLOM_STANDAR = ['Jenis Kelamin', 'Item', 'Hasil', 'Nilai', 'Matra'];
+var MATRA_STANDAR = ['Semua', 'AD', 'AL', 'AU'];
 var KOLOM_PENGATURAN = ['Kunci', 'Nilai', 'Keterangan'];
 var KOLOM_SYARAT = ['No', 'Syarat', 'Link (opsional)', 'Aktif (Ya/Tidak)'];
 var KOLOM_KONTAK = ['Waktu', 'ID Peserta', 'Nama Kontak', 'No. WhatsApp', 'Email JadiPrajurit', 'Status'];
@@ -74,7 +75,7 @@ var STANDAR_CONTOH = {
 var PENGATURAN_AWAL = [
   ['standar_resmi', 'TIDAK', 'Ubah menjadi YA setelah tabel di tab Standar Nilai dicocokkan dengan juknis seleksi resmi. Selama TIDAK, aplikasi menampilkan keterangan bahwa tabel belum ditandai resmi.'],
   ['sumber_standar', 'Tabel nilai jasmani TNI golongan umur 18–25 tahun (nilai 100 sesuai naskah Pusdikjas TNI AD); perlu dicocokkan dengan juknis seleksi terbaru', 'Sumber tabel nilai, misalnya nama juknis dan tahunnya. Tampil di aplikasi.'],
-  ['target_default', '70', 'Target nilai awal untuk casis yang baru mendaftar.'],
+  ['target_default', '100', 'Target nilai awal untuk casis yang baru mendaftar.'],
   ['link_grup_wa', '', 'Link grup WhatsApp casis. Kosongkan bila tidak ada.'],
   ['wa_admin', '', 'Nomor WhatsApp admin untuk bantuan, format 628xxxxxxxxxx. Kosongkan bila tidak ada.'],
   ['nama_admin', 'Admin JadiPrajurit', 'Nama kontak admin yang tersimpan di HP casis saat mereka menekan "Simpan nomor admin".'],
@@ -105,11 +106,17 @@ function setup() {
     var rows = [];
     GENDER.forEach(function (g) {
       ITEM_KEYS.forEach(function (k) {
-        STANDAR_CONTOH[g][k].forEach(function (r) { rows.push([g, ITEM_LABEL[k], r[0], r[1]]); });
+        STANDAR_CONTOH[g][k].forEach(function (r) { rows.push([g, ITEM_LABEL[k], r[0], r[1], 'Semua']); });
       });
     });
-    standar.getRange(2, 1, rows.length, 4).setValues(rows);
+    standar.getRange(2, 1, rows.length, 5).setValues(rows);
   }
+  // Baris lama tanpa matra dianggap berlaku untuk semua matra.
+  if (standar.getLastRow() >= 2) {
+    var colE = standar.getRange(2, 5, standar.getLastRow() - 1, 1);
+    colE.setValues(colE.getValues().map(function (r) { return [String(r[0]).trim() ? r[0] : 'Semua']; }));
+  }
+  standar.getRange('E2:E').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(MATRA_STANDAR, true).setAllowInvalid(false).build());
   standar.getRange('A2:A').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(GENDER, true).setAllowInvalid(false).build());
   standar.getRange('B2:B').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(ITEM_KEYS.map(function (k) { return ITEM_LABEL[k]; }), true).setAllowInvalid(false).build());
   standar.getRange('D2:D').setDataValidation(SpreadsheetApp.newDataValidation().requireNumberBetween(0, 100).setAllowInvalid(false).build());
@@ -209,15 +216,17 @@ function ambilConfig_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var set = bacaPengaturan_(ss);
   var standar = { Pria: {}, Wanita: {} };
+  var perMatra = { AD: { Pria: {}, Wanita: {} }, AL: { Pria: {}, Wanita: {} }, AU: { Pria: {}, Wanita: {} } };
   var labelKeKey = {};
   ITEM_KEYS.forEach(function (k) { labelKeKey[ITEM_LABEL[k].toLowerCase()] = k; });
   var sh = ss.getSheetByName(TAB.STANDAR);
   if (sh && sh.getLastRow() >= 2) {
-    sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues().forEach(function (r) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, 5).getValues().forEach(function (r) {
       var g = String(r[0]).trim(), k = labelKeKey[String(r[1]).trim().toLowerCase()];
-      var hasil = Number(r[2]), nilai = Number(r[3]);
+      var hasil = Number(r[2]), nilai = Number(r[3]), m = String(r[4]).trim().toUpperCase();
       if (!standar[g] || !k || r[2] === '' || r[3] === '' || !isFinite(hasil) || !isFinite(nilai) || nilai < 0 || nilai > 100) return;
-      (standar[g][k] = standar[g][k] || []).push([hasil, nilai]);
+      var tujuan = perMatra[m] ? perMatra[m][g] : standar[g];
+      (tujuan[k] = tujuan[k] || []).push([hasil, nilai]);
     });
   }
   var lengkap = true;
@@ -227,14 +236,28 @@ function ambilConfig_() {
       standar[g][k].sort(function (a, b) { return a[0] - b[0]; });
     });
   });
+  // Tabel khusus matra hanya dipakai untuk item yang punya minimal 2 baris; selebihnya memakai tabel Semua.
+  var standarMatra = {};
+  Object.keys(perMatra).forEach(function (m) {
+    GENDER.forEach(function (g) {
+      ITEM_KEYS.forEach(function (k) {
+        var t = perMatra[m][g][k];
+        if (t && t.length >= 2) {
+          t.sort(function (a, b) { return a[0] - b[0]; });
+          standarMatra[m] = standarMatra[m] || {}; standarMatra[m][g] = standarMatra[m][g] || {}; standarMatra[m][g][k] = t;
+        }
+      });
+    });
+  });
   return {
     ok: true,
     versi: VERSI_BACKEND,
     standar: standar,
+    standarMatra: standarMatra,
     standarResmi: String(set.standar_resmi || '').trim().toUpperCase() === 'YA' && lengkap,
     standarLengkap: lengkap,
     sumberStandar: set.sumber_standar || '',
-    targetDefault: Number(set.target_default) > 0 ? Number(set.target_default) : 70,
+    targetDefault: Number(set.target_default) > 0 ? Math.min(100, Number(set.target_default)) : 100,
     linkGrup: /^https:\/\//.test(set.link_grup_wa || '') ? set.link_grup_wa : '',
     waAdmin: /^62\d{8,13}$/.test(String(set.wa_admin || '').replace(/\D/g, '')) ? String(set.wa_admin).replace(/\D/g, '') : '',
     namaAdmin: String(set.nama_admin || 'Admin JadiPrajurit').slice(0, 60),
@@ -257,10 +280,10 @@ function daftar_(p, bukti) {
     var diajak = '';
     var ref = String(p.ref || '').toUpperCase();
     if (/^[A-Z0-9]{6,12}$/.test(ref)) { var rb = cariBaris_(sh, 23, ref); if (rb > 0) diajak = String(sh.getRange(rb, 1).getValue()); }
-    sh.appendRow([id, waktu.slice(0, 10), teks_(v.name, 80), v.email, '+' + v.wa, v.gender, v.age, v.height, v.weight,
+    sh.appendRow([id, waktu.slice(0, 10), teks_(v.name, 80), v.email, v.wa ? '+' + v.wa : '', v.gender, v.age, v.height, v.weight,
       teks_(v.domisili, 60), v.matra, v.jalur, v.testDate, v.target, 'Ya (' + waktu.slice(0, 10) + ')', waktu, 0, '', '',
       'Ya', '', 'Ya', kodeBaru_(sh), diajak, linkBukti]);
-    antreKontak_(id, v.name, v.wa, v.email);
+    if (v.wa) antreKontak_(id, v.name, v.wa, v.email);
     hapusCache_();
     return { ok: true, profil: profilPublik_(sh, sh.getLastRow()), catatan: [] };
   });
@@ -285,9 +308,10 @@ function simpanProfil_(email, p) {
     p.email = email;
     var adaWa = String(p.wa || '').replace(/\D/g, '') !== '';
     if (!adaWa) p.wa = String(sh.getRange(baris, 5).getValue()).replace(/\D/g, '');
+    if (!p.jalur) p.jalur = String(sh.getRange(baris, 12).getValue());
     var v = validasiProfil_(p, false);
     sh.getRange(baris, 3).setValue(teks_(v.name, 80));
-    sh.getRange(baris, 5, 1, 10).setValues([['+' + v.wa, v.gender, v.age, v.height, v.weight, teks_(v.domisili, 60), v.matra, v.jalur, v.testDate, v.target]]);
+    sh.getRange(baris, 5, 1, 10).setValues([[v.wa ? '+' + v.wa : '', v.gender, v.age, v.height, v.weight, teks_(v.domisili, 60), v.matra, v.jalur, v.testDate, v.target]]);
     sh.getRange(baris, 16).setValue(sekarang_());
     sh.getRange(baris, 22).setValue(p.tampilLeaderboard === false ? 'Tidak' : 'Ya');
     pastikanKode_(sh, baris);
@@ -461,7 +485,7 @@ function rekapSemua_() {
     });
     return {
       em: em, nama: namaTampil_(r[2]), matra: String(r[10]), jalur: String(r[11]), gender: g,
-      tampil: String(r[21]) !== 'Tidak', kode: String(r[22] || ''), target: Number(r[13]) || 70,
+      tampil: String(r[21]) !== 'Tidak', kode: String(r[22] || ''), target: Number(r[13]) || 100,
       nilai: garjas_(sc), lengkap: lengkap, hari: Object.keys(hari).length, total: logs.length, latest: latest, sc: sc
     };
   });
@@ -598,7 +622,7 @@ function profilPublik_(sh, baris) {
     id: String(r[0]), regAt: tgl_(r[1]), name: String(r[2]).replace(/^'/, ''), email: String(r[3]),
     gender: String(r[5]), age: r[6] === '' ? '' : Number(r[6]), height: r[7] === '' ? '' : Number(r[7]),
     weight: r[8] === '' ? '' : Number(r[8]), domisili: String(r[9]).replace(/^'/, ''), matra: String(r[10]),
-    jalur: String(r[11]), testDate: tgl_(r[12]), target: Number(r[13]) || 70, waTerisi: String(r[4]).replace(/\D/g, '').length > 8,
+    jalur: String(r[11]), testDate: tgl_(r[12]), target: Number(r[13]) || 100, waTerisi: String(r[4]).replace(/\D/g, '').length > 8,
     disimpanAdmin: String(r[19]) === 'Ya',
     kontakAdmin: /^Ya/.test(String(r[20])),
     tampilLeaderboard: String(r[21]) !== 'Tidak',
@@ -642,18 +666,18 @@ function validasiProfil_(p, baru) {
     matra: String(p.matra || ''),
     jalur: String(p.jalur || ''),
     testDate: /^\d{4}-\d{2}-\d{2}$/.test(String(p.testDate || '')) ? String(p.testDate) : '',
-    target: Number(p.target) > 0 && Number(p.target) <= 100 ? Number(p.target) : 70
+    target: Number(p.target) > 0 && Number(p.target) <= 100 ? Number(p.target) : 100
   };
   var salah = [];
   if (v.name.length < 3 || v.name.length > 80) salah.push('nama');
   if (!emailValid_(v.email)) salah.push('email');
-  if (!/^628\d{7,12}$/.test(v.wa)) salah.push('whatsapp');
+  if (v.wa && !/^628\d{7,12}$/.test(v.wa)) salah.push('whatsapp');
   if (GENDER.indexOf(v.gender) < 0) salah.push('jenis kelamin');
   if (!(v.age >= 15 && v.age <= 40)) salah.push('usia');
   if (v.height !== '' && !(v.height >= 120 && v.height <= 220)) salah.push('tinggi');
   if (v.weight !== '' && !(v.weight >= 30 && v.weight <= 160)) salah.push('berat');
   if (MATRA.indexOf(v.matra) < 0) salah.push('matra');
-  if (JALUR.indexOf(v.jalur) < 0) salah.push('jalur');
+  if (v.jalur && JALUR.indexOf(v.jalur) < 0) salah.push('jalur');
   if (baru && p.consent !== true) salah.push('persetujuan');
   if (salah.length) throw { kode: 'data_tidak_valid', pesan: salah.join(', ') };
   return v;

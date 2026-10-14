@@ -4,8 +4,8 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-12';
-  var BACKEND_DIHARAPKAN = '2026.10.11-6';
+  var VERSI = '2026.10.11-15';
+  var BACKEND_DIHARAPKAN = '2026.10.11-8';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
   var N = window.Nilai, ITEMS = N.ITEMS;
@@ -39,7 +39,7 @@
   function gender() { return S.profil && S.profil.gender === 'Wanita' ? 'Wanita' : 'Pria'; }
   function itemLabel(it) { return N.label(it, gender()); }
   function score(key, raw) { return N.score(key, raw, gender()); }
-  function target() { return S.profil && Number(S.profil.target) > 0 ? Number(S.profil.target) : (CFG && CFG.targetDefault) || 70; }
+  function target() { return S.profil && Number(S.profil.target) > 0 ? Number(S.profil.target) : (CFG && CFG.targetDefault) || 100; }
   function simpanSesi() { lsSet(LS_SESI, S.email ? S : null); }
 
   /* ---------------- API ---------------- */
@@ -70,9 +70,9 @@
 
   function muatConfig() {
     var c = lsGet(LS_CONFIG);
-    if (c) { CFG = c; N.setStandar(c.standar); }
+    if (c) { CFG = c; N.setStandar(c.standar, c.standarMatra); }
     return api('config', null, 'GET').then(function (j) {
-      CFG = j; N.setStandar(j.standar); lsSet(LS_CONFIG, j); return j;
+      CFG = j; N.setStandar(j.standar, j.standarMatra); lsSet(LS_CONFIG, j); return j;
     });
   }
 
@@ -130,6 +130,11 @@
   }
   function standarNote() {
     if (!CFG) return 'Standar nilai belum termuat dari server.';
+    var m = S.profil && S.profil.matra, khusus = m && ITEMS.filter(function (it) { return N.pakaiTabelMatra(it.key, gender(), m); }).length;
+    var awal = khusus ? 'Memakai tabel khusus TNI ' + esc(m) + (khusus < ITEMS.length ? ' untuk ' + khusus + ' item, sisanya tabel umum' : '') + '. ' : '';
+    return awal + standarNoteDasar();
+  }
+  function standarNoteDasar() {
     if (CFG.standarResmi) return 'Standar nilai resmi' + (CFG.sumberStandar ? ' (sumber: ' + esc(CFG.sumberStandar) + ')' : '') + '.';
     if (CFG.sumberStandar) return 'Standar nilai: ' + esc(CFG.sumberStandar) + '. Belum ditandai resmi oleh admin.';
     return 'Tabel nilai masih contoh, belum tabel resmi.';
@@ -198,7 +203,7 @@
     });
     if (tolak.length) return { ok: false, pesan: 'Periksa lagi: ' + tolak.join('; ') + '.' };
     ITEMS.forEach(function (it) {
-      var v = items[it.key]; if (v == null) return;
+      var v = items[it.key]; if (v == null || verifAktif(it.key)) return;
       var w = WAJAR[it.key][g], lbl = itemLabel(it);
       if (v < w[0] || v > w[1]) tanya.push(lbl + ' ' + fmtNum(v, 1) + ' ' + it.unit + ' di luar kisaran wajar (' + fmtNum(w[0], 0) + '–' + fmtNum(w[1], 0) + ')');
       var prev = catatanTerakhir(it.key);
@@ -242,6 +247,23 @@
   }
   window.addEventListener('online', function () { kirimAntre(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) kirimAntre(); });
+
+  /* ---------------- Hasil dari tes kamera / lari GPS ---------------- */
+  var LS_KIRIM = 'pelatih-garjas-kirim-v1';
+  function terimaHasil() {
+    var k = lsGet(LS_KIRIM);
+    if (!k || !S.email) return;
+    lsSet(LS_KIRIM, null);
+    var it = ITEMS.filter(function (i) { return i.key === k.key; })[0];
+    if (!it || !isFinite(k.nilai) || Date.now() - (Number(k.waktu) || 0) > 6 * 3600 * 1000) return;
+    draft.items[k.key] = k.nilai;
+    draft.verif = draft.verif || {}; draft.verif[k.key] = { sumber: k.sumber === 'gps' ? 'GPS' : 'kamera', nilai: k.nilai };
+    tab = 'catat';
+    setTimeout(function () {
+      toast('Hasil ' + (k.sumber === 'gps' ? 'lari GPS' : 'tes kamera') + ' sudah diisikan' + (k.gender && k.gender !== gender() ? ', tetapi jenis kelamin saat tes berbeda dengan profilmu. Periksa lagi' : '') + '. Tekan Simpan catatan.');
+    }, 300);
+  }
+  function verifAktif(key) { var v = draft.verif && draft.verif[key]; return v && draft.items[key] === v.nilai ? v : null; }
 
   /* ---------------- Syarat pendaftaran (pop-up bukti) ---------------- */
   var bukti = [], modalSyarat = false, syaratDibuka = false, syaratErr = '';
@@ -313,30 +335,27 @@
     h += '<label class="f">Nama lengkap *<input class="in" id="p-name" maxlength="80" autocomplete="name" value="' + esc(p.name) + '"></label>';
     if (isNew) h += '<label class="f">Email terdaftar di aplikasi JadiPrajurit *<input class="in" type="email" id="p-email" maxlength="120" autocomplete="email" inputmode="email" value="' + esc(p.email) + '" placeholder="nama@email.com"><span class="tiny muted" style="font-weight:500">Pakai email yang sama dengan akun JadiPrajurit-mu. Email ini dipakai untuk masuk.</span></label>';
     else h += '<div class="f">Email<span class="small" style="font-weight:500">' + esc(p.email) + '</span><span class="tiny muted" style="font-weight:500">Untuk mengganti email, hubungi admin.</span></div>';
-    h += '<label class="f">Nomor WhatsApp' + (isNew ? ' *' : '') + '<input class="in" type="tel" id="p-wa" maxlength="20" autocomplete="tel" inputmode="tel" placeholder="081234567890">' + (isNew ? '' : '<span class="tiny muted" style="font-weight:500">Kosongkan bila tidak ingin mengganti nomor yang sudah tersimpan.</span>') + '</label>';
     h += '<div class="grid2"><label class="f">Jenis kelamin *<select class="in" id="p-gender">' + opt(['Pria', 'Wanita'], p.gender || 'Pria') + '</select></label><label class="f">Usia *<input class="in" type="number" inputmode="numeric" id="p-age" min="15" max="40" value="' + esc(p.age) + '"></label></div>';
     h += '<div class="grid2"><label class="f">Tinggi (cm)<input class="in" type="number" inputmode="numeric" id="p-height" min="120" max="220" value="' + esc(p.height) + '"></label><label class="f">Berat (kg)<input class="in" type="number" inputmode="numeric" id="p-weight" min="30" max="160" value="' + esc(p.weight) + '"></label></div>';
     h += '<label class="f">Domisili (kota/kabupaten)<input class="in" id="p-domisili" maxlength="60" value="' + esc(p.domisili) + '" placeholder="Misal: Kota Bandung"></label>';
-    h += '<div class="grid2"><label class="f">Matra *<select class="in" id="p-matra">' + opt(['AD', 'AL', 'AU'], p.matra || 'AD') + '</select></label><label class="f">Jalur *<select class="in" id="p-jalur">' + opt(['Tamtama', 'Bintara', 'Akmil', 'PA PK'], p.jalur || 'Bintara') + '</select></label></div>';
-    h += '<div class="grid2"><label class="f">Tanggal tes jasmani<input class="in" type="date" id="p-test" value="' + esc(p.testDate) + '"></label><label class="f">Target nilai<input class="in" type="number" inputmode="numeric" id="p-target" min="1" max="100" value="' + esc(p.target || (CFG && CFG.targetDefault) || 70) + '"></label></div>';
+    h += '<label class="f">Matra *<select class="in" id="p-matra">' + opt(['AD', 'AL', 'AU'], p.matra || 'AD') + '</select></label>';
+    h += '<div class="grid2"><label class="f">Tanggal tes jasmani<input class="in" type="date" id="p-test" value="' + esc(p.testDate) + '"></label><label class="f">Target nilai<input class="in" type="number" inputmode="numeric" id="p-target" min="1" max="100" value="' + esc(p.target || (CFG && CFG.targetDefault) || 100) + '"></label></div>';
     if (!isNew) h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="p-lb" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"' + (p.tampilLeaderboard !== false ? ' checked' : '') + '> <span>Tampilkan nama depan dan nilaiku di Peringkat casis</span></label>';
-    if (isNew) h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="p-consent" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"> <span>Saya setuju data diri dan hasil latihan saya disimpan dan dikelola tim JadiPrajurit, serta nomor WhatsApp saya disimpan admin JadiPrajurit untuk info dan pendampingan latihan. Nama depan dan nilai saya dapat tampil di Peringkat casis (bisa dimatikan di Profil).</span></label>';
+    if (isNew) h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="p-consent" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"> <span>Saya setuju data diri dan hasil latihan saya disimpan dan dikelola tim JadiPrajurit. Nama depan dan nilai saya dapat tampil di Peringkat casis (bisa dimatikan di Profil).</span></label>';
     return h;
   }
   function readProfileForm(isNew) {
     var o = {
       name: $('#p-name').value.trim().replace(/\s+/g, ' ').slice(0, 80),
       email: isNew ? normEmail($('#p-email').value) : S.email,
-      wa: normWa($('#p-wa').value),
       gender: $('#p-gender').value, age: $('#p-age').value, height: $('#p-height').value, weight: $('#p-weight').value,
-      domisili: $('#p-domisili').value.trim().slice(0, 60), matra: $('#p-matra').value, jalur: $('#p-jalur').value,
+      domisili: $('#p-domisili').value.trim().slice(0, 60), matra: $('#p-matra').value,
       testDate: $('#p-test').value
     };
-    var t = num($('#p-target').value); o.target = t != null && t > 0 && t <= 100 ? t : 70;
+    var t = num($('#p-target').value); o.target = t != null && t > 0 && t <= 100 ? t : 100;
     var err = [];
     if (o.name.length < 3) err.push('nama lengkap');
     if (isNew && !EMAIL_RE.test(o.email)) err.push('email yang valid');
-    if ((isNew || o.wa) && !/^628\d{7,12}$/.test(o.wa)) err.push('nomor WhatsApp yang valid (contoh 081234567890)');
     var a = num(o.age); if (a == null || a < 15 || a > 40) err.push('usia (15–40 tahun)');
     var hg = num(o.height); if (o.height !== '' && (hg == null || hg < 120 || hg > 220)) err.push('tinggi badan (120–220 cm)');
     var wg = num(o.weight); if (o.weight !== '' && (wg == null || wg < 30 || wg > 160)) err.push('berat badan (30–160 kg)');
@@ -372,7 +391,7 @@
     if (!buktiLengkap()) { setAuthMsg('Unggah dulu bukti untuk setiap syarat pendaftaran.'); bukaSyarat(); return; }
     var saran = saranEmail(r.data.email);
     if (saran && confirm('Apakah maksudmu ' + saran + '?\n\nTekan OK untuk memakai ' + saran + ', atau Batal untuk tetap memakai ' + r.data.email + '.')) { r.data.email = saran; var pe = $('#p-email'); if (pe) pe.value = saran; draftDaftar.email = saran; }
-    if (!confirm('Periksa data utamamu sebelum daftar:\n\nEmail (untuk masuk): ' + r.data.email + '\nWhatsApp: +' + r.data.wa + '\nJenis kelamin: ' + r.data.gender + '\nUsia: ' + r.data.age + ' tahun\nJalur: ' + r.data.jalur + ' TNI ' + r.data.matra + '\n\nJenis kelamin dan usia menentukan tabel nilai. Sudah benar?')) { setAuthMsg('Silakan periksa lagi datamu, lalu tekan Daftar.'); return; }
+    if (!confirm('Periksa data utamamu sebelum daftar:\n\nEmail (untuk masuk): ' + r.data.email + '\nJenis kelamin: ' + r.data.gender + '\nUsia: ' + r.data.age + ' tahun\nMatra: TNI ' + r.data.matra + '\n\nJenis kelamin dan usia menentukan tabel nilai. Sudah benar?')) { setAuthMsg('Silakan periksa lagi datamu, lalu tekan Daftar.'); return; }
     if (r.data.testDate && r.data.testDate < todayStr()) { setAuthMsg('Tanggal tes jasmani sudah lewat. Kosongkan atau isi tanggal tes berikutnya.'); return; }
     busy = true; authMsg = ''; render();
     var ref = lsGet(LS_REF);
@@ -381,7 +400,7 @@
     api('daftar', { profil: r.data, bukti: kirimBukti }).then(function (j) {
       lsSet(LS_REF, null); bukti = [];
       busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; simpanSesi();
-      draftDaftar = {}; tab = 'beranda'; pendingAutoOpen = true; render(); toast('Pendaftaran berhasil!');
+      draftDaftar = {}; tab = 'beranda'; sambut = true; render(); toast('Pendaftaran berhasil!');
     }, function (e) {
       busy = false; authMsg = pesanError(e);
       if (e && e.kode === 'email_terdaftar') { authView = 'login'; draftLogin = r.data.email; }
@@ -393,7 +412,7 @@
     if (!EMAIL_RE.test(e)) { setAuthMsg('Masukkan email yang valid.'); return; }
     busy = true; authMsg = ''; render();
     api('masuk', { email: e }).then(function (j) {
-      busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; S.catatan = gabungAntre(S.catatan); simpanSesi(); kirimAntre();
+      busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; S.catatan = gabungAntre(S.catatan); simpanSesi(); kirimAntre(); terimaHasil();
       tab = 'beranda'; render(); toast('Selamat datang kembali, ' + String(j.profil.name).split(' ')[0] + '!');
     }, function (err) {
       busy = false; authMsg = pesanError(err);
@@ -407,7 +426,7 @@
   /* ---------------- Beranda ---------------- */
   function viewBeranda() {
     var p = S.profil, cur = currentScores(), tg = target(), dl = daysToTest(), st = streak();
-    var h = brand() + '<div class="top" style="margin-top:-4px"><div><div class="sub">Halo, ' + esc(String(p.name).split(' ')[0]) + '</div><h1>' + (dl != null ? (dl > 0 ? 'Tes jasmani ' + dl + ' hari lagi' : dl === 0 ? 'Hari ini tes jasmani. Semangat!' : 'Tanggal tes sudah lewat') : 'SIGAP') + '</h1><div class="sub">' + esc(p.jalur + ' TNI ' + p.matra + ', ' + p.gender + (p.age ? ', ' + p.age + ' tahun' : '')) + '</div></div></div>';
+    var h = brand() + '<div class="top" style="margin-top:-4px"><div><div class="sub">Halo, ' + esc(String(p.name).split(' ')[0]) + '</div><h1>' + (dl != null ? (dl > 0 ? 'Tes jasmani ' + dl + ' hari lagi' : dl === 0 ? 'Hari ini tes jasmani. Semangat!' : 'Tanggal tes sudah lewat') : 'SIGAP') + '</h1><div class="sub">' + esc('TNI ' + p.matra + ', ' + p.gender + (p.age ? ', ' + p.age + ' tahun' : '')) + '</div></div></div>';
     if (!S.catatan.length) {
       h += '<div class="card stack"><h2>Mulai dengan tes awal</h2><p class="small muted" style="margin:0">Lakukan dan catat lari 12 menit, ' + esc(itemLabel(ITEMS[1]).toLowerCase()) + ', sit-up, push-up, dan shuttle run sebagai titik mulai. Gunakan stopwatch di menu Catat supaya waktunya sama seperti tes.</p><button class="btn" data-go="catat">Catat tes awal</button></div>';
       if (!p.testDate) h += '<div class="card stack"><p class="small muted" style="margin:0">Isi tanggal tes jasmani di menu Profil supaya hitung mundur dan program latihan menyesuaikan.</p><button class="btn ghost" data-go="profil">Isi tanggal tes</button></div>';
@@ -422,6 +441,7 @@
     var sy = LB.data && LB.data.saya;
     h += '<div class="row" style="align-items:center"><span class="soft">' + (sy && sy.rankNilai ? 'Peringkat #' + sy.rankNilai + ' dari ' + LB.data.totalNilai + ' casis' : (sy && !sy.lengkap ? 'Catat kelima item untuk masuk peringkat' : '')) + '</span><button type="button" class="btn small" data-go="bagikan" style="background:var(--hero-ink);color:var(--hero)">' + icon('share', 18) + 'Bagikan</button></div>';
     h += '</section>';
+    h += kartuBagikanLatihan();
 
     var nAntre = S.catatan.filter(function (l) { return l.tertunda; }).length;
     if (nAntre) h += '<div class="note warnbox small">' + nAntre + ' catatan tersimpan di HP dan menunggu dikirim. Pastikan koneksi internet menyala.</div>';
@@ -439,69 +459,43 @@
     h += '<p class="tiny muted" style="margin:8px 0 0">' + standarNote() + '</p></div>';
     return h + grupCard() + adminCard();
   }
-  function vcardAdmin() {
-    var n = String((CFG && CFG.namaAdmin) || 'Admin JadiPrajurit').replace(/[\r\n;,]/g, ' ');
-    return 'data:text/vcard;charset=utf-8,' + encodeURIComponent('BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + n + '\r\nN:' + n + ';;;;\r\nTEL;TYPE=CELL:+' + CFG.waAdmin + '\r\nEND:VCARD\r\n');
+  // Langkah sambutan setelah daftar: ajakan gabung grup dan konsultasi dengan admin (tidak wajib).
+  var sambut = false;
+  function linkChatAdmin() {
+    var p = S.profil || {}, g = S.email ? currentScores().garjas : null;
+    var teks = 'Halo ' + ((CFG && CFG.namaAdmin) || 'Admin JadiPrajurit') + ', saya ' + (p.name || '') + ' (' + (p.email || '') + '), peserta SIGAP TNI ' + (p.matra || '') + '. Saya ingin konsultasi persiapan tes jasmani.' + (g != null ? ' Prediksi nilai saya saat ini ' + fmtNum(g, 1) + '.' : '');
+    return 'https://wa.me/' + CFG.waAdmin + '?text=' + encodeURIComponent(teks);
   }
-  function adminCard(judul) {
-    if (!CFG || !CFG.waAdmin) return '';
-    var p = S.profil || {}, nama = (CFG.namaAdmin || 'Admin JadiPrajurit');
-    var h = '<div class="card stack"><h2>' + esc(judul || 'Kontak admin') + '</h2>';
-    h += '<p class="small muted" style="margin:0">Hubungi ' + esc(nama) + ' untuk pertanyaan seputar latihan dan seleksi. Ganti HP? Simpan ulang nomornya supaya Status WhatsApp admin tetap terlihat.</p>';
-    h += '<div class="btns"><a class="btn ghost" href="' + vcardAdmin() + '" download="' + esc(nama) + '.vcf">Simpan ulang nomor admin</a>';
-    h += '<a class="btn ghost" href="https://wa.me/' + esc(CFG.waAdmin) + '?text=' + encodeURIComponent('Halo admin JadiPrajurit, saya ' + (p.name || '') + ' (' + (p.email || '') + ') sudah daftar SIGAP.') + '" target="_blank" rel="noopener">Chat admin</a></div>';
-    return h + '</div>';
-  }
-  /* Langkah wajib: simpan nomor admin */
-  var kartu = { dibuka: false };
-  var pendingAutoOpen = false;
-  function fmtNoWa(d) { d = String(d || ''); return '+' + d.slice(0, 2) + ' ' + d.slice(2, 5) + '-' + d.slice(5, 9) + '-' + d.slice(9); }
-  function perluSimpanAdmin() { return !!(S.email && S.profil && !S.profil.kontakAdmin && CFG && CFG.waAdmin); }
+  function perluSimpanAdmin() { return !!(sambut && S.email && CFG && (CFG.linkGrup || CFG.waAdmin)); }
   function viewSimpanAdmin() {
-    var nama = CFG.namaAdmin || 'Admin JadiPrajurit';
-    var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Satu langkah lagi: simpan nomor admin</h1><div class="sub">Wajib sebelum mulai, supaya kamu mendapat info seleksi, jadwal, dan Status WhatsApp dari admin.</div></div></div>';
-    h += '<div class="card stack">';
-    h += '<div class="row"><div><div class="small muted">Nama kontak</div><div style="font-weight:700">' + esc(nama) + '</div></div><div style="text-align:right"><div class="small muted">Nomor</div><div style="font-weight:700">' + esc(fmtNoWa(CFG.waAdmin)) + '</div></div></div>';
-    h += '<a class="btn" id="save-admin" href="' + vcardAdmin() + '" download="' + esc(nama) + '.vcf">' + (kartu.dibuka ? 'Buka lagi kartu kontak' : 'Simpan nomor admin') + '</a>';
-    h += '<p class="small muted" style="margin:0">Kartu kontak akan terbuka di HP-mu. Ketuk <b>Simpan</b> atau <b>Tambahkan ke kontak</b>. Kalau tidak terbuka, simpan manual nomor di atas dengan nama ' + esc(nama) + '.</p>';
-    h += '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;min-height:44px"><input type="checkbox" id="admin-saved" style="width:22px;height:22px;flex:0 0 auto;margin-top:1px"> <span>Saya sudah menyimpan nomor ' + esc(nama) + ' di kontak HP saya.</span></label>';
-    h += '<div id="auth-msg" class="small warn" role="alert">' + esc(authMsg) + '</div>';
-    h += '<button class="btn" id="confirm-admin"' + (busy ? ' disabled' : '') + '>' + (busy ? '<span class="spin" aria-hidden="true"></span> Menyimpan…' : 'Lanjut ke aplikasi') + '</button></div>';
+    var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Selamat datang di SIGAP, ' + esc(String(S.profil.name || '').split(' ')[0]) + '!</h1><div class="sub">Biar persiapanmu makin terarah, gabung bersama casis lain dan konsultasikan rencana latihanmu dengan admin.</div></div></div>';
+    if (CFG.linkGrup) h += '<div class="card stack"><h2>Grup WhatsApp casis</h2><p class="small muted" style="margin:0">Info seleksi terbaru, jadwal, dan latihan bareng casis lain.</p><a class="btn" href="' + esc(CFG.linkGrup) + '" target="_blank" rel="noopener">Gabung grup WhatsApp</a></div>';
+    if (CFG.waAdmin) h += '<div class="card stack"><h2>Konsultasi dengan admin</h2><p class="small muted" style="margin:0">Tanyakan program latihan, target nilai, atau persiapan seleksi. Pesannya sudah disiapkan, tinggal kirim.</p><a class="btn" href="' + esc(linkChatAdmin()) + '" target="_blank" rel="noopener">Chat admin untuk konsultasi</a></div>';
+    h += '<button class="btn ghost" id="confirm-admin">Mulai pakai SIGAP</button>';
     return h;
   }
-  function bukaKartuAdmin() {
-    try {
-      var nama = CFG.namaAdmin || 'Admin JadiPrajurit';
-      var raw = decodeURIComponent(vcardAdmin().split(',').slice(1).join(','));
-      var url = URL.createObjectURL(new Blob([raw], { type: 'text/vcard' }));
-      var a = document.createElement('a'); a.href = url; a.download = nama + '.vcf';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
-      kartu.dibuka = true;
-    } catch (e) { }
-  }
-  function konfirmasiAdmin() {
-    if (!$('#admin-saved').checked) { setAuthMsg('Simpan nomor admin dulu, lalu centang konfirmasinya.'); return; }
-    busy = true; authMsg = ''; render();
-    api('konfirmasiKontak', { email: S.email }).then(function (j) {
-      busy = false; S.profil = j.profil; S.profil.kontakAdmin = true; simpanSesi(); tab = 'beranda'; render(); toast('Terima kasih! Selamat berlatih.');
-    }, function (e) { busy = false; authMsg = pesanError(e); render(); });
+  function konfirmasiAdmin() { sambut = false; tab = 'beranda'; render(); }
+  function adminCard(judul) {
+    if (!CFG || !CFG.waAdmin) return '';
+    return '<div class="card stack"><h2>' + esc(judul || 'Konsultasi dengan admin') + '</h2><p class="small muted" style="margin:0">Bingung menyusun latihan atau ingin tahu peluangmu? Chat admin JadiPrajurit untuk konsultasi.</p><a class="btn ghost" href="' + esc(linkChatAdmin()) + '" target="_blank" rel="noopener">Chat admin untuk konsultasi</a></div>';
   }
   function grupCard() {
     if (!CFG || !CFG.linkGrup) return '';
     return '<div class="card stack"><h2>Grup casis</h2><p class="small muted" style="margin:0">Gabung grup WhatsApp untuk info seleksi dan latihan bareng casis lain.</p><a class="btn ghost" href="' + esc(CFG.linkGrup) + '" target="_blank" rel="noopener">Gabung grup WhatsApp</a></div>';
   }
 
+
   /* ---------------- Catat ---------------- */
   function viewCatat() {
     var h = '<div class="top"><div><h1>Catat latihan</h1><div class="sub">Isi hasil yang kamu lakukan hari ini. Item yang tidak dilatih boleh dikosongkan.</div></div></div>';
     h += viewTimer();
-    h += '<div class="card stack"><div class="row"><h2>Lari 12 menit dengan GPS</h2><span class="tag">Prototipe</span></div><p class="small muted" style="margin:0">Jarak dihitung GPS dan diperiksa sensor langkah. Layar HP harus tetap menyala selama lari.</p><a class="btn ghost" href="lari.html">Coba sekarang</a></div>';
-    h += '<div class="card stack"><div class="row"><h2>Tes kamera</h2><span class="tag">Prototipe</span></div><p class="small muted" style="margin:0">Taruh HP sesuai panduan, kamera menghitung gerakan yang sah dan menolak gerakan yang salah.</p><div class="btns"><a class="btn ghost small" href="kamera.html?item=pushup">Push-up</a><a class="btn ghost small" href="kamera.html?item=situp">Sit-up</a><a class="btn ghost small" href="kamera.html?item=pullup">' + (gender() === 'Wanita' ? 'Chinning' : 'Pull-up') + '</a></div></div>';
+    h += '<div class="card stack"><div class="row"><h2>Lari 12 menit dengan GPS</h2><span class="tag good">Terverifikasi</span></div><p class="small muted" style="margin:0">Jarak dihitung GPS dan diperiksa sensor langkah, lalu bisa langsung disimpan ke catatan. Layar HP harus tetap menyala selama lari.</p><a class="btn ghost" href="lari.html">Coba sekarang</a></div>';
+    h += '<div class="card stack"><div class="row"><h2>Tes kamera</h2><span class="tag good">Terverifikasi</span></div><p class="small muted" style="margin:0">Taruh HP sesuai panduan. Kamera menghitung gerakan yang sah selama 1 menit, lalu hasilnya bisa langsung disimpan ke catatan.</p><div class="btns"><a class="btn ghost small" href="kamera.html?item=pushup">Push-up</a><a class="btn ghost small" href="kamera.html?item=situp">Sit-up</a><a class="btn ghost small" href="kamera.html?item=pullup">' + (gender() === 'Wanita' ? 'Chinning' : 'Pull-up') + '</a></div></div>';
     h += '<div class="card stack"><label class="f">Tanggal<input class="in" type="date" id="f-date" value="' + esc(draft.date) + '" max="' + todayStr() + '"></label>';
     ITEMS.forEach(function (it) {
       var v = draft.items[it.key], s = v != null ? score(it.key, v) : null;
-      h += '<div class="logrow"><label class="f" for="f-' + it.key + '">' + esc(itemLabel(it)) + ' (' + it.unit + ')</label><span></span><input class="in" type="number" inputmode="decimal" id="f-' + it.key + '" data-item="' + it.key + '" min="' + it.min + '" max="' + it.max + '" step="' + it.step + '" placeholder="' + it.ph + '" value="' + (v != null ? esc(v) : '') + '"><span class="hint" id="h-' + it.key + '">' + (s != null ? 'Nilai ' + fmtNum(s, 0) : '') + '</span></div>';
+      var vf = verifAktif(it.key);
+      h += '<div class="logrow"><label class="f" for="f-' + it.key + '">' + esc(itemLabel(it)) + ' (' + it.unit + ')' + (vf ? ' <span class="tag good" id="vf-' + it.key + '">Terverifikasi ' + vf.sumber + '</span>' : '') + '</label><span></span><input class="in" type="number" inputmode="decimal" id="f-' + it.key + '" data-item="' + it.key + '" min="' + it.min + '" max="' + it.max + '" step="' + it.step + '" placeholder="' + it.ph + '" value="' + (v != null ? esc(v) : '') + '"><span class="hint" id="h-' + it.key + '">' + (s != null ? 'Nilai ' + fmtNum(s, 0) : '') + '</span></div>';
     });
     h += '<label class="f">Catatan (opsional)<input class="in" type="text" id="f-note" maxlength="200" value="' + esc(draft.note) + '" placeholder="Misal: cuaca panas, kaki agak pegal"></label>';
     h += '<label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;font-weight:600"><input type="checkbox" id="f-sim" style="width:22px;height:22px"' + (draft.sim ? ' checked' : '') + '> Ini simulasi tes lengkap (urutan seperti tes asli)</label>';
@@ -527,13 +521,15 @@
     var before = currentScores();
     var bests = {}; ITEMS.forEach(function (it) { var ser = itemSeries(it.key); if (ser.length) bests[it.key] = Math.max.apply(null, ser.map(function (p) { return p.s; })); });
     var sim = draft.sim && isComplete(items);
-    var log = { id: uid(), date: draft.date, items: items, sim: sim, note: (draft.note || '').trim().slice(0, 200) };
+    var catVerif = ITEMS.filter(function (it) { return verifAktif(it.key); }).map(function (it) { return 'Terverifikasi ' + draft.verif[it.key].sumber + ': ' + itemLabel(it).toLowerCase() + ' ' + fmtNum(items[it.key], 0); });
+    var noteAkhir = [(draft.note || '').trim()].concat(catVerif).filter(Boolean).join(' · ');
+    var log = { id: uid(), date: draft.date, items: items, sim: sim, note: noteAkhir.slice(0, 200) };
     S.catatan.push(log);
     var rk = ringkasan();
     S.catatan.pop();
     busy = true; render();
     api('tambahCatatan', { email: S.email, catatan: Object.assign({ garjas: N.garjasItems(items, gender()) }, log), ringkasan: rk }).then(function () {
-      busy = false; S.catatan.push(log); simpanSesi(); LB.at = 0;
+      busy = false; S.catatan.push(log); simpanSesi(); LB.at = 0; terakhirDisimpan = log.id;
       var after = currentScores(), msgs = [];
       ITEMS.forEach(function (it) { if (items[it.key] == null) return; var s = score(it.key, items[it.key]); if (bests[it.key] != null && s > bests[it.key]) msgs.push('rekor baru ' + itemLabel(it).toLowerCase()); });
       var dg = after.garjas != null && before.garjas != null ? Math.round((after.garjas - before.garjas) * 10) / 10 : null;
@@ -693,7 +689,7 @@
     }
     h += '<div class="card"><h2 style="padding-bottom:6px">Riwayat</h2>';
     sortedLogs().reverse().slice(0, 40).forEach(function (l) {
-      h += '<div class="hist"><div class="row"><span style="font-weight:700">' + esc(fmtDate(l.date)) + ' ' + (l.sim ? '<span class="tag sim">Simulasi</span>' : '') + (l.tertunda ? ' <span class="tag">Menunggu dikirim</span>' : '') + '</span><button type="button" class="linkbtn" data-del="' + esc(l.id) + '">Hapus</button></div>';
+      h += '<div class="hist"><div class="row"><span style="font-weight:700">' + esc(fmtDate(l.date)) + ' ' + (l.sim ? '<span class="tag sim">Simulasi</span>' : '') + (l.tertunda ? ' <span class="tag">Menunggu dikirim</span>' : '') + '</span><span style="display:flex;gap:14px"><button type="button" class="linkbtn" data-bagikan="' + esc(l.id) + '|">Bagikan</button><button type="button" class="linkbtn" data-del="' + esc(l.id) + '">Hapus</button></span></div>';
       h += '<div class="small">' + ITEMS.filter(function (it) { return l.items[it.key] != null; }).map(function (it) { return esc(itemLabel(it)) + ': ' + fmtNum(l.items[it.key], 1) + ' ' + it.unit + ' <span class="muted">(nilai ' + fmtNum(score(it.key, l.items[it.key]), 0) + ')</span>'; }).join('<br>') + '</div>';
       if (l.note) h += '<div class="tiny muted">' + esc(l.note) + '</div>';
       h += '</div>';
@@ -702,6 +698,7 @@
   }
   function hapusLog(id) {
     if (busy || !confirm('Hapus catatan ini?')) return;
+    if (terakhirDisimpan === id) terakhirDisimpan = null;
     var lokal = S.catatan.filter(function (l) { return l.id === id && l.tertunda; })[0];
     if (lokal) { setAntre(antre().filter(function (x) { return x.catatan.id !== id; })); S.catatan = S.catatan.filter(function (l) { return l.id !== id; }); simpanSesi(); render(); toast('Catatan dihapus.'); return; }
     var sisa = S.catatan.filter(function (l) { return l.id !== id; }), simpan = S.catatan;
@@ -780,15 +777,15 @@
     if (!list.length) h += '<p class="small muted" style="margin:8px">Belum ada casis di peringkat ini. Jadilah yang pertama!</p>';
     list.forEach(function (x, i) {
       var val = lbMode === 'nilai' ? fmtNum(x.nilai, 1) : x.hari + ' hari';
-      h += '<div class="lb-row' + (x.saya ? ' saya' : '') + '"><span class="lb-rank">' + (i + 1) + '</span><div><div style="font-weight:700">' + esc(x.nama) + (x.saya ? ' <span class="tag">Kamu</span>' : '') + '</div><div class="tiny muted">' + esc(x.jalur + ' TNI ' + x.matra + ', ' + x.gender) + '</div></div><span class="lb-val">' + esc(val) + '</span></div>';
+      h += '<div class="lb-row' + (x.saya ? ' saya' : '') + '"><span class="lb-rank">' + (i + 1) + '</span><div><div style="font-weight:700">' + esc(x.nama) + (x.saya ? ' <span class="tag">Kamu</span>' : '') + '</div><div class="tiny muted">' + esc('TNI ' + x.matra + ', ' + x.gender) + '</div></div><span class="lb-val">' + esc(val) + '</span></div>';
     });
     h += '</div><div class="btns"><button class="btn ghost small" id="lb-refresh"' + (LB.loading ? ' disabled' : '') + '>' + (LB.loading ? 'Memuat…' : 'Perbarui') + '</button></div>';
-    h += '<p class="tiny muted" style="margin:0">Peringkat nilai hanya menghitung casis yang sudah mencatat kelima item. Yang tampil hanya nama depan, inisial, matra, dan jalur.</p>';
+    h += '<p class="tiny muted" style="margin:0">Peringkat nilai hanya menghitung casis yang sudah mencatat kelima item. Yang tampil hanya nama depan, inisial, dan matra.</p>';
     return h;
   }
 
   /* ---------------- Bagikan hasil ---------------- */
-  var share = { url: null, blob: null, loading: false, err: '' };
+  var share = { url: null, blob: null, loading: false, err: '', mode: 'ringkasan', logId: null, key: null };
   function namaPendek(n) { var b = String(n || '').trim().split(/\s+/); return (b[0] || 'Casis').slice(0, 15) + (b[1] ? ' ' + b[1].charAt(0).toUpperCase() + '.' : ''); }
   function linkBagikan() { var base = location.origin + location.pathname.replace(/index\.html$/, ''); return S.profil && S.profil.kodeBagikan ? base + '?h=' + S.profil.kodeBagikan : base; }
   function teksBagikan() {
@@ -816,7 +813,7 @@
     [[80, 220, 1, 1], [1000, 220, -1, 1], [80, 1720, 1, -1], [1000, 1720, -1, -1]].forEach(function (b) { x.beginPath(); x.moveTo(b[0], b[1] + b[3] * 60); x.lineTo(b[0], b[1]); x.lineTo(b[0] + b[2] * 60, b[1]); x.stroke(); });
     if (logoStiker) { var lw = 720; x.drawImage(logoStiker, 118, 252, lw, lw * logoStiker.height / logoStiker.width); }
     else { x.fillStyle = INK; x.font = '800 64px ' + MS; x.fillText('JADIPRAJURIT', 130, 340); }
-    x.fillStyle = HIJAU; x.font = '34px ' + ST; x.fillText('// LAPORAN SIGAP · ' + (p.jalur + ' TNI ' + p.matra).toUpperCase(), 130, 500);
+    x.fillStyle = HIJAU; x.font = '34px ' + ST; x.fillText('// LAPORAN SIGAP · TNI ' + String(p.matra).toUpperCase(), 130, 500);
     x.fillStyle = INK; x.font = '800 84px ' + MS; x.fillText(namaPendek(p.name), 130, 610);
     x.fillStyle = SOFT; x.font = '600 36px ' + MS; x.fillText('Prediksi nilai jasmani', 130, 705);
     x.fillStyle = INK; x.font = '290px ' + ST; x.fillText(fmtNum(g, 1), 110, 985);
@@ -846,7 +843,9 @@
     var fonts = document.fonts && document.fonts.load ? Promise.all(['800 84px Montserrat', '600 36px Montserrat', '40px "Saira Stencil One"'].map(function (f) { return document.fonts.load(f); })) : Promise.resolve();
     var batas = new Promise(function (r) { setTimeout(r, 2500); });
     Promise.race([Promise.all([fonts, muatLogo(), muatLB(false).catch(function () { })]), batas]).then(function () {
-      var c = gambarHasil();
+      var D = share.mode === 'latihan' ? dataLatihan(share.logId, share.key) : null;
+      if (share.mode === 'latihan' && !D) share.mode = 'ringkasan';
+      var c = D ? gambarLatihan(D) : gambarHasil();
       return new Promise(function (res, rej) { if (c.toBlob) c.toBlob(function (b) { b ? res(b) : rej(); }, 'image/png'); else rej(); });
     }).then(function (blob) {
       if (share.url) URL.revokeObjectURL(share.url);
@@ -855,31 +854,145 @@
     }, function () { share.loading = false; share.err = 'Gambar belum bisa dibuat di browser ini. Kamu tetap bisa membagikan link.'; if (tab === 'bagikan') render(); });
   }
   function viewBagikan() {
-    var h = '<div class="top"><div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn ghost small" data-go="beranda" aria-label="Kembali" style="padding:0 10px">' + icon('back', 20) + '</button><div><h1>Bagikan hasil</h1><div class="sub">Ajak teman casis ukur kesiapan fisiknya</div></div></div></div>';
+    var h = '<div class="top"><div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn ghost small" data-go="beranda" aria-label="Kembali" style="padding:0 10px">' + icon('back', 20) + '</button><div><h1>Bagikan ' + (share.mode === 'latihan' ? 'latihan' : 'hasil') + '</h1><div class="sub">Ajak teman casis ukur kesiapan fisiknya</div></div></div></div>';
     if (!S.catatan.length) return h + '<div class="card stack"><p class="small muted" style="margin:0">Catat latihan dulu supaya ada hasil yang bisa dibagikan.</p><button class="btn" data-go="catat">Catat latihan</button></div>';
+    var lg = share.mode === 'latihan' && S.catatan.filter(function (x) { return x.id === share.logId; })[0];
+    h += '<div class="chips" role="group" aria-label="Pilih isi story">';
+    h += '<button type="button" class="chip" data-share-mode="ringkasan" aria-pressed="' + (!lg) + '">Semua latihan</button>';
+    var lgUntuk = lg || sortedLogs()[sortedLogs().length - 1];
+    ITEMS.forEach(function (it) { if (lgUntuk.items[it.key] != null) h += '<button type="button" class="chip" data-bagikan="' + esc(lgUntuk.id) + '|' + it.key + '" aria-pressed="' + (!!lg && share.key === it.key) + '">' + esc(itemLabel(it)) + '</button>'; });
+    h += '</div>';
+    if (lgUntuk) h += '<p class="tiny muted" style="margin:-6px 0 0">Latihan per item diambil dari catatan ' + esc(fmtDate(lgUntuk.date)) + '. Untuk tanggal lain, buka Riwayat di menu Progres.</p>';
     h += '<div class="card stack" style="align-items:center">';
     if (share.loading || (!share.url && !share.err)) h += '<div class="share-prev" style="display:flex;align-items:center;justify-content:center"><span class="spin" aria-hidden="true"></span></div>';
     else if (share.url) h += '<img class="share-prev" src="' + share.url + '" alt="Gambar hasil latihan JadiPrajurit: prediksi nilai jasmani ' + fmtNum(currentScores().garjas, 1) + '">';
     if (share.err) h += '<p class="small warn" style="margin:0">' + esc(share.err) + '</p>';
     h += '<div class="btns" style="width:100%">';
     if (navigator.share) h += '<button class="btn" id="share-native"' + (share.loading ? ' disabled' : '') + '>' + icon('share', 18) + 'Bagikan</button>';
-    if (share.url) h += '<a class="btn ghost" href="' + share.url + '" download="hasil-sigap-jadiprajurit.png">Unduh gambar</a>';
+    if (share.url) h += '<a class="btn ghost" href="' + share.url + '" download="' + (lg ? 'latihan-' + share.key + '-sigap.png' : 'hasil-sigap-jadiprajurit.png') + '">Unduh gambar</a>';
     h += '</div><p class="tiny muted" style="margin:0;text-align:center">Ukuran pas untuk Instagram Story dan Status WhatsApp.</p></div>';
     var link = linkBagikan();
     h += '<div class="card stack"><h2>Link hasilmu</h2><div class="small" style="word-break:break-all;background:var(--line2);border-radius:10px;padding:10px 12px">' + esc(link) + '</div>';
-    h += '<div class="btns"><button class="btn ghost small" id="share-copy">Salin link</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(teksBagikan() + ' ' + link) + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a></div>';
-    h += '<p class="tiny muted" style="margin:0">Yang terlihat orang lain hanya nama depan, inisial, matra, jalur, dan nilaimu. Email dan nomor WhatsApp tidak pernah ditampilkan.</p></div>';
+    var teksNow = lg ? teksLatihan(dataLatihan(share.logId, share.key)) : teksBagikan();
+    h += '<div class="btns"><button class="btn ghost small" id="share-copy">Salin link</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(teksNow + ' ' + link) + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a></div>';
+    h += '<p class="tiny muted" style="margin:0">Yang terlihat orang lain hanya nama depan, inisial, matra, dan nilaimu. Email tidak pernah ditampilkan.</p></div>';
     return h;
   }
   function bagikanNative() {
-    var link = linkBagikan(), data = { title: 'Hasil latihan SIGAP', text: teksBagikan(), url: link };
+    var Dn = share.mode === 'latihan' ? dataLatihan(share.logId, share.key) : null;
+    var teksN = Dn ? teksLatihan(Dn) : teksBagikan();
+    var link = linkBagikan(), data = { title: 'Hasil latihan SIGAP', text: teksN, url: link };
     try {
       if (share.blob && window.File) {
         var f = new File([share.blob], 'hasil-sigap-jadiprajurit.png', { type: 'image/png' });
-        if (navigator.canShare && navigator.canShare({ files: [f] })) { data.files = [f]; data.text = teksBagikan() + ' ' + link; delete data.url; }
+        if (navigator.canShare && navigator.canShare({ files: [f] })) { data.files = [f]; data.text = teksN + ' ' + link; delete data.url; }
       }
     } catch (e) { }
     navigator.share(data).catch(function () { });
+  }
+
+  /* ---------------- Story per latihan ---------------- */
+  var terakhirDisimpan = null; // id catatan yang baru disimpan, untuk ajakan bagikan di Beranda
+  function labelLatihan(it) { return itemLabel(it) + (it.key === 'lari' || it.key === 'shuttle' ? '' : ' · 1 menit'); }
+  function verifLatihan(l, it) {
+    var n = String(l.note || ''), lbl = itemLabel(it).toLowerCase();
+    if (n.indexOf('Terverifikasi kamera: ' + lbl) >= 0) return 'KAMERA';
+    if (n.indexOf('Terverifikasi GPS: ' + lbl) >= 0) return 'GPS';
+    return '';
+  }
+  // Data satu latihan: hasil, nilai, perbandingan dengan sebelumnya, rekor, dan 5 riwayat terakhir.
+  function dataLatihan(logId, key) {
+    var urut = sortedLogs(), idx = -1;
+    urut.forEach(function (l, i) { if (l.id === logId) idx = i; });
+    if (idx < 0) return null;
+    var l = urut[idx], it = ITEMS.filter(function (i) { return i.key === key; })[0];
+    if (!it || l.items[key] == null) return null;
+    var lebihKecil = key === 'shuttle', v = l.items[key];
+    var sebelum = urut.slice(0, idx).filter(function (x) { return x.items[key] != null; });
+    var prev = sebelum.length ? sebelum[sebelum.length - 1].items[key] : null;
+    var terbaikLama = sebelum.length ? sebelum.reduce(function (b, x) { var y = x.items[key]; return lebihKecil ? Math.min(b, y) : Math.max(b, y); }, lebihKecil ? Infinity : -Infinity) : null;
+    var rekor = terbaikLama != null && (lebihKecil ? v < terbaikLama : v > terbaikLama);
+    var riwayat = sebelum.slice(-4).map(function (x) { return { v: x.items[key], d: x.date }; }).concat([{ v: v, d: l.date }]);
+    var desimal = key === 'shuttle' ? 1 : 0, sel = '', baik = true;
+    if (prev != null) {
+      var d = Math.round((v - prev) * 10) / 10;
+      if (d === 0) sel = 'SAMA DENGAN SEBELUMNYA';
+      else if (lebihKecil) { baik = d < 0; sel = fmtNum(Math.abs(d), 1) + ' DETIK LEBIH ' + (d < 0 ? 'CEPAT' : 'LAMBAT'); }
+      else { baik = d > 0; sel = (d > 0 ? '+' : '−') + fmtNum(Math.abs(d), desimal) + (key === 'lari' ? ' M' : '') + ' DARI SEBELUMNYA'; }
+    }
+    return { log: l, it: it, v: v, nilai: score(key, v), rekor: rekor, verif: verifLatihan(l, it), selisih: sel, baik: baik, riwayat: riwayat, lebihKecil: lebihKecil, desimal: desimal };
+  }
+  function gambarLatihan(D) {
+    var W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H;
+    var x = c.getContext('2d'), p = S.profil, tg = target();
+    var MS = "'Montserrat', 'Public Sans', Arial, sans-serif", ST = "'Saira Stencil One', 'Archivo', Arial, sans-serif";
+    var INK = '#F3F2EC', SOFT = '#C3D2BD', HIJAU = '#8CCB86', ORANYE = '#F29A38', LATAR = '#121810';
+    x.fillStyle = LATAR; x.fillRect(0, 0, W, H);
+    x.strokeStyle = 'rgba(140,203,134,0.08)'; x.lineWidth = 2;
+    for (var i = 0; i < W; i += 60) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, H); x.stroke(); }
+    for (var j = 0; j < H; j += 60) { x.beginPath(); x.moveTo(0, j); x.lineTo(W, j); x.stroke(); }
+    x.strokeStyle = 'rgba(140,203,134,0.18)'; x.lineWidth = 3;
+    [300, 480, 660].forEach(function (r) { x.beginPath(); x.arc(820, 820, r / 2, 0, Math.PI * 2); x.stroke(); });
+    x.strokeStyle = ORANYE; x.lineWidth = 8;
+    [[80, 220, 1, 1], [1000, 220, -1, 1], [80, 1720, 1, -1], [1000, 1720, -1, -1]].forEach(function (b) { x.beginPath(); x.moveTo(b[0], b[1] + b[3] * 60); x.lineTo(b[0], b[1]); x.lineTo(b[0] + b[2] * 60, b[1]); x.stroke(); });
+    if (logoStiker) x.drawImage(logoStiker, 118, 252, 720, 720 * logoStiker.height / logoStiker.width);
+    else { x.fillStyle = INK; x.font = '800 64px ' + MS; x.fillText('JADIPRAJURIT', 130, 340); }
+    x.fillStyle = HIJAU; x.font = '34px ' + ST; x.fillText('// LATIHAN ' + (D.log.date === todayStr() ? 'HARI INI' : 'SIGAP') + ' · TNI ' + String(p.matra).toUpperCase(), 130, 500);
+    x.fillStyle = INK; x.font = '800 84px ' + MS; x.fillText(namaPendek(p.name), 130, 610);
+    var tglPanjang; try { tglPanjang = parseDate(D.log.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { tglPanjang = D.log.date; }
+    x.fillStyle = SOFT; x.font = '600 36px ' + MS; x.fillText(tglPanjang, 130, 668);
+    var bx = 130; x.font = '30px ' + ST;
+    [[D.verif ? 'TERVERIFIKASI ' + D.verif : '', HIJAU], [D.rekor ? 'REKOR BARU' : '', ORANYE]].forEach(function (b) {
+      if (!b[0]) return; var tw = x.measureText(b[0]).width + 44;
+      x.fillStyle = b[1]; rr(x, bx, 720, tw, 56, 12); x.fill(); x.fillStyle = LATAR; x.fillText(b[0], bx + 22, 760); bx += tw + 16;
+    });
+    x.fillStyle = ORANYE; x.font = '60px ' + ST; x.fillText(labelLatihan(D.it).toUpperCase(), 130, 860);
+    var hasil = fmtNum(D.v, D.desimal), sat = D.it.unit.toUpperCase();
+    x.font = '64px ' + ST; var sw = x.measureText(sat).width, fz = 300;
+    x.font = fz + 'px ' + ST; while (x.measureText(hasil).width + 24 + sw > 840 && fz > 160) { fz -= 10; x.font = fz + 'px ' + ST; }
+    x.fillStyle = INK; x.fillText(hasil, 110, 1140); var hw = x.measureText(hasil).width;
+    x.font = '64px ' + ST; x.fillStyle = SOFT; x.fillText(sat, 110 + hw + 24, 1140);
+    x.fillStyle = INK; x.font = '40px ' + ST; x.fillText('NILAI ' + fmtNum(D.nilai, 0), 130, 1210);
+    x.textAlign = 'right'; x.fillStyle = SOFT; x.font = '600 34px ' + MS; x.fillText('target ' + fmtNum(tg, 0), 950, 1210); x.textAlign = 'left';
+    var isi = Math.round((D.nilai || 0) / 5);
+    for (var k = 0; k < 20; k++) { x.fillStyle = k < isi ? (D.nilai >= tg ? HIJAU : ORANYE) : 'rgba(243,242,236,0.12)'; x.fillRect(130 + k * 41, 1232, 33, 14); }
+    if (D.selisih) { x.fillStyle = D.baik ? HIJAU : ORANYE; x.font = '38px ' + ST; x.fillText(D.selisih, 130, 1306); }
+    if (D.riwayat.length > 1) {
+      x.fillStyle = SOFT; x.font = '600 32px ' + MS; x.fillText('Perkembangan ' + D.riwayat.length + ' latihan terakhir', 130, 1366);
+      var vs = D.riwayat.map(function (r) { return r.v; }), mx = Math.max.apply(null, vs), mn = Math.min.apply(null, vs), bw = 110, gap = 34, base = 1538;
+      D.riwayat.forEach(function (r, i) {
+        var t = D.lebihKecil ? (mx - r.v) / ((mx - mn) || 1) : (r.v - mn) / ((mx - mn) || 1), h = 30 + t * 92, X = 130 + i * (bw + gap), akhir = i === D.riwayat.length - 1;
+        x.fillStyle = akhir ? ORANYE : 'rgba(140,203,134,0.55)'; x.fillRect(X, base - h, bw, h);
+        x.textAlign = 'center'; x.fillStyle = akhir ? INK : SOFT; x.font = (akhir ? '36px ' : '30px ') + ST; x.fillText(fmtNum(r.v, D.desimal), X + bw / 2, base - h - 14);
+        var dt = parseDate(r.d); x.font = '600 24px ' + MS; x.fillStyle = SOFT; x.fillText(dt.getDate() + '/' + (dt.getMonth() + 1), X + bw / 2, base + 34); x.textAlign = 'left';
+      });
+    } else {
+      x.fillStyle = HIJAU; x.font = '40px ' + ST; x.fillText('LATIHAN PERTAMA,', 130, 1400); x.fillText('AYO PANTAU PERKEMBANGANNYA!', 130, 1452);
+    }
+    x.strokeStyle = 'rgba(140,203,134,0.35)'; x.lineWidth = 2; x.beginPath(); x.moveTo(130, 1588); x.lineTo(950, 1588); x.stroke();
+    x.fillStyle = INK; x.font = '800 32px ' + MS; x.fillText('Ukur kesiapan fisikmu sekarang juga', 130, 1630); x.fillText('di aplikasi JadiPrajurit.', 130, 1668);
+    x.font = '28px ' + ST; x.fillStyle = ORANYE; x.fillText('TERSEDIA DI', 130, 1712);
+    var px = 318;
+    ['PLAY STORE', 'APP STORE'].forEach(function (t) { var tw = x.measureText(t).width + 36; x.strokeStyle = INK; x.lineWidth = 3; rr(x, px, 1680, tw, 46, 10); x.stroke(); x.fillStyle = INK; x.fillText(t, px + 18, 1712); px += tw + 14; });
+    return c;
+  }
+  function teksLatihan(D) {
+    var t = 'Latihan ' + labelLatihan(D.it).toLowerCase() + ' saya: ' + fmtNum(D.v, D.desimal) + ' ' + D.it.unit + ' (nilai ' + fmtNum(D.nilai, 0) + ')' + (D.rekor ? ', rekor baru!' : '.') + (D.verif ? ' Terverifikasi ' + (D.verif === 'GPS' ? 'GPS' : 'kamera') + '.' : '');
+    return t + ' Ukur kesiapan fisikmu sekarang juga di SIGAP, aplikasi JadiPrajurit, tersedia di Play Store dan App Store. Lihat hasilku:';
+  }
+  function bagikanLatihan(logId, key) {
+    var l = S.catatan.filter(function (x) { return x.id === logId; })[0]; if (!l) return;
+    share.mode = 'latihan'; share.logId = logId;
+    share.key = key && l.items[key] != null ? key : ITEMS.filter(function (it) { return l.items[it.key] != null; })[0].key;
+    go('bagikan');
+  }
+  function kartuBagikanLatihan() {
+    var l = terakhirDisimpan && S.catatan.filter(function (x) { return x.id === terakhirDisimpan; })[0];
+    if (!l) return '';
+    var it = ITEMS.filter(function (i) { return l.items[i.key] != null; });
+    var h = '<div class="card stack goodcard"><div class="row"><h2>Latihan tersimpan</h2><button type="button" class="linkbtn" id="tutup-bagikan-latihan">Tutup</button></div><p class="small muted" style="margin:0">Bagikan hasil latihanmu ke Instagram Story atau Status WhatsApp.</p><div class="btns">';
+    it.forEach(function (i) { h += '<button type="button" class="btn ghost small" data-bagikan="' + esc(l.id) + '|' + i.key + '">' + esc(itemLabel(i)) + '</button>'; });
+    return h + '</div></div>';
   }
 
   /* ---------------- Halaman hasil publik (?h=KODE) ---------------- */
@@ -887,8 +1000,8 @@
   function viewLanding() {
     var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '</div></div>';
     if (!landing.data) return h + '<div class="card" style="text-align:center">' + (landing.err ? '<p class="small muted" style="margin:0 0 10px">' + esc(landing.err) + '</p>' : '<span class="spin" aria-hidden="true"></span> Memuat hasil…') + '</div>' + ctaLanding();
-    var d = landing.data, tg = d.target || 70;
-    h += '<div><h1 style="margin:0;font-family:Archivo,sans-serif;font-weight:800;font-size:26px;line-height:1.2">' + esc(d.nama) + ' sedang bersiap untuk tes jasmani TNI</h1><div class="sub">' + esc(d.jalur + ' TNI ' + d.matra) + '</div></div>';
+    var d = landing.data, tg = d.target || 100;
+    h += '<div><h1 style="margin:0;font-family:Archivo,sans-serif;font-weight:800;font-size:26px;line-height:1.2">' + esc(d.nama) + ' sedang bersiap untuk tes jasmani TNI</h1><div class="sub">' + esc('TNI ' + d.matra) + '</div></div>';
     h += '<section class="hero"><div class="soft">Prediksi nilai jasmani</div><div style="display:flex;align-items:baseline;gap:8px"><span class="big">' + fmtNum(d.nilai, 1) + '</span><span class="soft">/ 100</span></div>';
     h += '<div class="hbar" aria-hidden="true"><i style="width:' + Math.max(2, Math.min(100, d.nilai || 0)) + '%"></i><b style="left:calc(' + Math.min(100, tg) + '% - 1px)"></b></div>';
     if (d.rankNilai) h += '<div class="soft" style="color:var(--hero-ink)">Peringkat <b>#' + d.rankNilai + '</b> dari ' + d.totalNilai + ' casis SIGAP</div>';
@@ -928,7 +1041,7 @@
     });
     h += '</div></details></div>';
     h += grupCard();
-    h += adminCard('Butuh bantuan?');
+    h += adminCard();
     h += '<div class="card stack"><h2>Akun</h2><p class="small muted" style="margin:0">Masuk sebagai ' + esc(p.email) + '.</p><button class="btn ghost" id="logout">Keluar</button></div>';
     return h;
   }
@@ -977,6 +1090,8 @@
       });
       baris(urut.length ? false : true, 'Urutan tabel nilai', urut.length ? 'Tidak berurutan, periksa baris: ' + esc(urut.join(', ')) + '. Hasil lebih baik harus bernilai lebih tinggi (shuttle run: waktu lebih cepat bernilai lebih tinggi).' : 'Semua tabel berurutan dengan benar.');
       baris(Array.isArray(c.syarat) ? (c.syarat.length ? true : 'warn') : false, 'Syarat pendaftaran (tab Syarat)', Array.isArray(c.syarat) ? (c.syarat.length ? c.syarat.length + ' syarat aktif, wajib diunggah buktinya saat daftar.' : 'Tidak ada syarat aktif, pendaftaran tanpa bukti.') : 'Backend belum mengirim data syarat. Deploy versi backend terbaru.');
+      var sm = c.standarMatra || {}, daftarM = ['AD', 'AL', 'AU'].filter(function (m) { return sm[m]; }).map(function (m) { var n = 0; ['Pria', 'Wanita'].forEach(function (g) { n += Object.keys((sm[m] || {})[g] || {}).length; }); return 'TNI ' + m + ' (' + n + ' tabel)'; });
+      baris(true, 'Tabel khusus matra', daftarM.length ? 'Terpasang: ' + esc(daftarM.join(', ')) + '. Item yang belum diisi memakai tabel Semua.' : 'Belum ada. Semua matra memakai tabel Semua.');
       baris(c.standarLengkap ? true : 'warn', 'Tab Standar Nilai', c.standarLengkap ? 'Semua item untuk Pria dan Wanita terbaca.' : 'Ada item yang kurang dari 2 baris, sementara memakai tabel contoh untuk item itu.');
       baris(c.standarResmi ? true : 'warn', 'Standar nilai resmi', c.standarResmi ? 'Sumber: ' + esc(c.sumberStandar || '(belum diisi)') : (c.sumberStandar ? 'Sumber: ' + esc(c.sumberStandar) + '. Ubah standar_resmi menjadi YA di tab Pengaturan setelah dicocokkan dengan juknis.' : 'Masih tabel contoh. Isi tabel resmi lalu ubah standar_resmi menjadi YA di tab Pengaturan.'));
       baris(c.linkGrup ? true : 'warn', 'Link grup WhatsApp', c.linkGrup ? 'Terisi.' : 'Kosong (opsional). Isi link_grup_wa di tab Pengaturan.');
@@ -991,6 +1106,7 @@
   var toastTimer = null;
   function toast(t) { var el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.classList.remove('show'); }, 4200); }
   function render() {
+    N.setMatra(S.profil && S.profil.matra);
     if (tab === 'catat') readDraftFromForm();
     var nav = document.querySelector('nav.tabs'), v, gate = !S.email;
     if (landing.aktif) { gate = true; v = viewLanding(); }
@@ -1002,12 +1118,14 @@
     if (!gate) renderNav();
     if (!gate && tab === 'beranda' && S.catatan.length && !LB.data && !LB.loading && !LB.err) muatLB(false).catch(function () { });
     if (!landing.aktif && !S.email && authView === 'daftar' && !syaratDibuka && daftarSyarat() && daftarSyarat().length) bukaSyarat();
-    if (perluSimpanAdmin() && pendingAutoOpen) { pendingAutoOpen = false; setTimeout(bukaKartuAdmin, 400); }
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest('button,a'); if (!b) return;
     if (b.dataset.tab) { go(b.dataset.tab); return; }
-    if (b.dataset.go) { go(b.dataset.go); return; }
+    if (b.dataset.go) { if (b.dataset.go === 'bagikan') share.mode = 'ringkasan'; go(b.dataset.go); return; }
+    if (b.dataset.bagikan) { var pb = b.dataset.bagikan.split('|'); bagikanLatihan(pb[0], pb[1]); return; }
+    if (b.dataset.shareMode) { share.mode = 'ringkasan'; go('bagikan'); return; }
+    if (b.id === 'tutup-bagikan-latihan') { terakhirDisimpan = null; render(); return; }
     if (b.dataset.pick) { progressPick = b.dataset.pick; render(); return; }
     if (b.dataset.lbmode) { lbMode = b.dataset.lbmode; render(); return; }
     if (b.dataset.lbmatra) { lbMatra = b.dataset.lbmatra; render(); return; }
@@ -1036,14 +1154,16 @@
       case 'landing-daftar': if (landing.kode) lsSet(LS_REF, landing.kode); tutupLanding('daftar'); break;
       case 'landing-masuk': tutupLanding('login'); break;
       case 'landing-app': tutupLanding(null); break;
-      case 'save-admin': kartu.dibuka = true; break;
       case 'copy-week': copyText(weekSummary().full); break;
     }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'login-email') { e.preventDefault(); if (!busy) doLogin(); } });
   document.addEventListener('input', function (e) {
     var k = e.target.dataset && e.target.dataset.item;
-    if (k) { var v = num(e.target.value), s = v != null ? score(k, v) : null, h = $('#h-' + k); if (h) h.textContent = s != null ? 'Nilai ' + fmtNum(s, 0) : ''; }
+    if (k) {
+      var v = num(e.target.value), s = v != null ? score(k, v) : null, h = $('#h-' + k); if (h) h.textContent = s != null ? 'Nilai ' + fmtNum(s, 0) : '';
+      if (draft.verif && draft.verif[k] && v !== draft.verif[k].nilai) { delete draft.verif[k]; var t = $('#vf-' + k); if (t) t.remove(); }
+    }
   });
 
   /* ---------------- Mulai ---------------- */
@@ -1066,8 +1186,8 @@
       function (e) { landing.err = e && e.kode === 'tidak_ditemukan' ? 'Hasil ini tidak ditemukan.' : 'Hasil belum bisa dimuat.'; if (landing.aktif) render(); });
   }
   var sesi = lsGet(LS_SESI);
-  if (sesi && sesi.email && sesi.profil) { S = { email: sesi.email, profil: sesi.profil, catatan: Array.isArray(sesi.catatan) ? sesi.catatan : [] }; }
-  else authView = 'daftar';
+  if (sesi && sesi.email && sesi.profil) { S = { email: sesi.email, profil: sesi.profil, catatan: Array.isArray(sesi.catatan) ? sesi.catatan : [] }; terimaHasil(); }
+  else { authView = lsGet(LS_KIRIM) ? 'login' : 'daftar'; if (lsGet(LS_KIRIM)) authMsg = 'Masuk dulu untuk menyimpan hasil tesmu.'; }
   muatConfig().then(function () { if (!busy) render(); }, function () { });
   render();
   if (S.email) {

@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  (window.VERSI_FILE = window.VERSI_FILE || {})['nilai.js'] = '2026.10.11-12';
+  (window.VERSI_FILE = window.VERSI_FILE || {})['nilai.js'] = '2026.10.11-15';
 
   var ITEMS = [
     { key: 'lari', label: 'Lari 12 menit', unit: 'm', min: 0, max: 6000, step: '10', ph: '2400' },
@@ -33,18 +33,27 @@
     }
   };
 
-  var standar = STANDAR_CONTOH;
+  var standar = STANDAR_CONTOH, standarMatra = {}, matraAktif = '';
 
-  function setStandar(s) {
-    if (!s || !s.Pria || !s.Wanita) return;
-    var ok = ['Pria', 'Wanita'].every(function (g) {
-      return ITEMS.every(function (it) { var t = s[g][it.key]; return Array.isArray(t) && t.length >= 2; });
-    });
-    if (ok) standar = s;
+  // s: tabel umum (berlaku semua matra). sm: tabel khusus per matra, boleh sebagian item saja.
+  function setStandar(s, sm) {
+    if (s && s.Pria && s.Wanita) {
+      var ok = ['Pria', 'Wanita'].every(function (g) {
+        return ITEMS.every(function (it) { var t = s[g][it.key]; return Array.isArray(t) && t.length >= 2; });
+      });
+      if (ok) standar = s;
+    }
+    standarMatra = sm && typeof sm === 'object' ? sm : {};
   }
+  function setMatra(m) { matraAktif = String(m || '').toUpperCase(); }
   function gKey(g) { return g === 'Wanita' ? 'Wanita' : 'Pria'; }
-  function tabel(key, gender) {
-    return standar[gKey(gender)][key].slice().sort(function (a, b) { return a[0] - b[0]; });
+  function tabelKhusus(key, gender, matra) {
+    var m = standarMatra[String(matra || matraAktif).toUpperCase()];
+    var t = m && m[gKey(gender)] && m[gKey(gender)][key];
+    return Array.isArray(t) && t.length >= 2 ? t : null;
+  }
+  function tabel(key, gender, matra) {
+    return (tabelKhusus(key, gender, matra) || standar[gKey(gender)][key]).slice().sort(function (a, b) { return a[0] - b[0]; });
   }
   function label(it, gender) { return gender === 'Wanita' && it.labelW ? it.labelW : it.label; }
 
@@ -210,6 +219,8 @@
   window.Nilai = {
     ITEMS: ITEMS,
     setStandar: setStandar,
+    setMatra: setMatra,
+    pakaiTabelMatra: function (key, gender, matra) { return !!tabelKhusus(key, gender, matra); },
     score: score,
     label: label,
     garjasFrom: garjasFrom,

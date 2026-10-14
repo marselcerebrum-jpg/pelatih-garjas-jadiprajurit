@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-13** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-15** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -89,6 +89,18 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 **Casis wajib menyimpan nomor admin.** Setelah daftar, kartu kontak admin langsung terbuka otomatis di HP casis. Casis tidak bisa masuk ke aplikasi sebelum mencentang "Saya sudah menyimpan nomor admin". Konfirmasinya tercatat di kolom **Simpan Nomor Admin** pada tab Peserta. Casis yang mendaftar sebelum fitur ini juga akan diminta langkah yang sama saat membuka aplikasi.
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
+
+## Data pendaftaran
+
+Wajib: bukti syarat, nama lengkap, email akun JadiPrajurit, jenis kelamin, usia, matra, dan persetujuan data. Opsional: tinggi, berat, domisili, tanggal tes, dan target nilai (bawaan 100). Nomor WhatsApp dan jalur **tidak lagi diminta**; data lama peserta yang sudah terisi tetap tersimpan.
+
+Setelah daftar, peserta melihat halaman sambutan dengan dua ajakan: **Gabung grup WhatsApp** (link dari `link_grup_wa`) dan **Chat admin untuk konsultasi** (nomor dari `wa_admin`, pesan sudah terisi nama, email, matra, dan prediksi nilai). Kedua ajakan juga tampil di Beranda dan Profil. Karena nomor peserta tidak lagi diminta, tab **Simpan Kontak** hanya terisi dari peserta lama; nomor peserta baru didapat admin saat mereka mengirim chat konsultasi.
+
+## Story per latihan
+
+Selain story ringkasan semua latihan, peserta bisa membagikan **satu latihan saja**, misalnya push-up hari ini. Isinya: hasil dalam angka besar, nilai dibanding target, selisih dari latihan sebelumnya, grafik 5 latihan terakhir untuk item itu, serta label otomatis **Terverifikasi kamera/GPS** dan **Rekor baru**. Latihan pertama untuk sebuah item menampilkan ajakan memantau perkembangan.
+
+Tombol bagikan latihan tersedia di tiga tempat: kartu **Latihan tersimpan** di Beranda setelah menyimpan catatan, tombol **Bagikan** di setiap catatan pada Riwayat (menu Progres), dan pilihan latihan di halaman Bagikan.
 
 ## Tabel nilai per matra
 
