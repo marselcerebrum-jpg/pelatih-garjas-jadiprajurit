@@ -1,4 +1,0 @@
-MediaPipe Tasks Vision 0.10.21 (vision_bundle.mjs dan folder wasm) dan model
-pose_landmarker_lite.task dibuat oleh Google LLC dan dirilis dengan lisensi
-Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
-Sumber: https://github.com/google-ai-edge/mediapipe
