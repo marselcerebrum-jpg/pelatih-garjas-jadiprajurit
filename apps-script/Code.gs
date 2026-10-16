@@ -12,7 +12,7 @@
  * Version: New version → Deploy. JANGAN pilih "New deployment", karena URL-nya berubah.
  */
 
-var VERSI_BACKEND = '2026.10.11-8';
+var VERSI_BACKEND = '2026.10.11-9';
 var TZ = 'Asia/Jakarta';
 
 var TAB = {
@@ -21,7 +21,8 @@ var TAB = {
   STANDAR: 'Standar Nilai',
   PENGATURAN: 'Pengaturan',
   KONTAK: 'Simpan Kontak',
-  SYARAT: 'Syarat'
+  SYARAT: 'Syarat',
+  BATTLE: 'Battle'
 };
 var NAMA_FOLDER_BUKTI = 'Bukti Syarat - SIGAP JadiPrajurit';
 var MAX_BUKTI_BYTES = 5 * 1024 * 1024;
@@ -37,6 +38,7 @@ var KOLOM_CATATAN = ['ID Catatan', 'Waktu Input', 'Email JadiPrajurit', 'Nama Le
 var KOLOM_STANDAR = ['Jenis Kelamin', 'Item', 'Hasil', 'Nilai', 'Matra'];
 var MATRA_STANDAR = ['Semua', 'AD', 'AL', 'AU'];
 var KOLOM_PENGATURAN = ['Kunci', 'Nilai', 'Keterangan'];
+var KOLOM_BATTLE = ['ID', 'Dibuat', 'Item', 'Penantang Email', 'Penantang Nama', 'Ditantang Email', 'Ditantang Nama', 'Skor Penantang', 'Nilai Penantang', 'Skor Ditantang', 'Nilai Ditantang', 'Status', 'Batas Waktu', 'Pemenang', 'Selesai'];
 var KOLOM_SYARAT = ['No', 'Syarat', 'Link (opsional)', 'Aktif (Ya/Tidak)'];
 var KOLOM_KONTAK = ['Waktu', 'ID Peserta', 'Nama Kontak', 'No. WhatsApp', 'Email JadiPrajurit', 'Status'];
 
@@ -145,7 +147,8 @@ function setup() {
   syarat.getRange('D2:D').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['Ya', 'Tidak'], true).setAllowInvalid(false).build());
   folderBukti_();
 
-  var kontak = siapkanTab_(ss, TAB.KONTAK, KOLOM_KONTAK, 5);
+  siapkanTab_(ss, TAB.BATTLE, KOLOM_BATTLE, 6);
+  var kontak = siapkanTab_(ss, TAB.KONTAK, KOLOM_KONTAK, 7);
   kontak.getRange('B:F').setNumberFormat('@');
   kontak.setColumnWidth(6, 320);
 
@@ -181,6 +184,7 @@ function doGet(e) {
     if (aksi === 'ping') return json_({ ok: true, versi: VERSI_BACKEND, waktu: sekarang_() });
     if (aksi === 'config') return json_(ambilConfig_());
     if (aksi === 'hasil') return json_(hasilPublik_(e.parameter.k));
+    if (aksi === 'battle') return json_(battleLihat_(e.parameter.id));
     return json_({ ok: false, kode: 'aksi_tidak_dikenal' });
   } catch (err) {
     if (err && err.kode) return json_({ ok: false, kode: err.kode, pesan: err.pesan || '' });
@@ -200,6 +204,10 @@ function doPost(e) {
       case 'konfirmasiKontak': return json_(konfirmasiKontak_(body.email));
       case 'leaderboard': return json_(leaderboard_(body.email));
       case 'hapusCatatan': return json_(hapusCatatan_(body.email, body.id, body.ringkasan || {}));
+      case 'battleBuat': return json_(battleBuat_(body.email, body.lawan, body.item, body.skor));
+      case 'battleJawab': return json_(battleJawab_(body.email, body.id, body.skor));
+      case 'battleTolak': return json_(battleTolak_(body.email, body.id));
+      case 'battleDaftar': return json_(battleDaftar_(body.email));
     }
     return json_({ ok: false, kode: 'aksi_tidak_dikenal' });
   } catch (err) {
@@ -480,7 +488,7 @@ function rekapSemua_() {
       if (l.d >= batas && l.d <= hariIni) hari[l.d] = 1;
     });
     ITEM_KEYS.forEach(function (k) {
-      sc[k] = latest[k] != null ? skor_(cfg.standar[g][k], latest[k]) : null;
+      sc[k] = latest[k] != null ? nilaiItem_(cfg, g, r[10], k, latest[k]) : null;
       if (sc[k] == null) lengkap = false;
     });
     return {
@@ -507,7 +515,7 @@ function leaderboard_(email) {
   var data = rekapSemua_();
   var u = urutanPeringkat_(data.list);
   var pub = function (x, i) {
-    return { rank: i + 1, nama: x.nama, matra: x.matra, jalur: x.jalur, gender: x.gender, nilai: x.nilai, hari: x.hari, saya: x.em === me };
+    return { rank: i + 1, nama: x.nama, matra: x.matra, gender: x.gender, nilai: x.nilai, hari: x.hari, saya: x.em === me, token: x.em === me ? '' : tokenPeserta_(x.em) };
   };
   var self = data.list.filter(function (x) { return x.em === me; })[0];
   var posisi = function (arr) { for (var i = 0; i < arr.length; i++) if (arr[i].em === me) return i + 1; return null; };
@@ -532,6 +540,140 @@ function hasilPublik_(kode) {
     target: x.target, total: x.total, rankNilai: rank, totalNilai: u.nilai.length,
     items: ITEM_KEYS.map(function (k) { return { key: k, raw: x.latest[k] != null ? x.latest[k] : null, nilai: x.sc[k] }; })
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Battle antarpeserta                                                 */
+/* ------------------------------------------------------------------ */
+
+var ITEM_BATTLE = ['pushup', 'situp', 'pullup'];
+var BATTLE_JAM = 48, BATTLE_MAKS_AKTIF = 3;
+
+function tokenPeserta_(em) {
+  var d = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, 'sigap-battle:' + normEmail_(em));
+  return d.slice(0, 6).map(function (b) { return ('0' + ((b + 256) % 256).toString(16)).slice(-2); }).join('').toUpperCase();
+}
+
+function nilaiItem_(cfg, g, matra, key, raw) {
+  var sm = cfg.standarMatra && cfg.standarMatra[String(matra).toUpperCase()];
+  var t = (sm && sm[g] && sm[g][key]) || cfg.standar[g][key];
+  return skor_(t, raw);
+}
+
+function pesertaDariEmail_(email) {
+  var em = normEmail_(email), sh = tab_(TAB.PESERTA), baris = cariBaris_(sh, 4, em);
+  if (baris < 0) throw { kode: 'tidak_ditemukan' };
+  var r = sh.getRange(baris, 1, 1, KOLOM_PESERTA.length).getValues()[0];
+  return { em: em, nama: String(r[2]).replace(/^'/, ''), gender: String(r[5]) === 'Wanita' ? 'Wanita' : 'Pria', matra: String(r[10]) };
+}
+
+function validasiSkorBattle_(item, skor) {
+  if (ITEM_BATTLE.indexOf(item) < 0) throw { kode: 'data_tidak_valid', pesan: 'item' };
+  skor = Number(skor);
+  if (!isFinite(skor) || skor < 0 || skor > 150 || Math.round(skor) !== skor) throw { kode: 'data_tidak_valid', pesan: 'skor' };
+  return skor;
+}
+
+function battleBaris_() {
+  var sh = tab_(TAB.BATTLE), n = sh.getLastRow() - 1;
+  return { sh: sh, rows: n > 0 ? sh.getRange(2, 1, n, KOLOM_BATTLE.length).getValues() : [] };
+}
+
+function rapikanBattle_(sh, rows) {
+  var kini = sekarang_();
+  rows.forEach(function (r, i) {
+    if (r[11] === 'menunggu' && String(r[12]) < kini) { r[11] = 'kedaluwarsa'; sh.getRange(i + 2, 12).setValue('kedaluwarsa'); }
+  });
+}
+
+function battlePub_(r, me) {
+  var peran = normEmail_(r[3]) === me ? 'penantang' : normEmail_(r[5]) === me ? 'ditantang' : 'lain';
+  var hasil = null;
+  if (r[11] === 'selesai') hasil = r[13] === 'seri' ? 'seri' : (r[13] === peran ? 'menang' : 'kalah');
+  var num = function (v) { return v === '' || v === null ? null : Number(v); };
+  return {
+    id: String(r[0]), dibuat: String(r[1]), item: String(r[2]), status: String(r[11]), batas: String(r[12]), peran: peran, hasil: hasil,
+    penantang: namaTampil_(r[4]), ditantang: r[6] ? namaTampil_(r[6]) : '', terbuka: !r[5],
+    skorP: num(r[7]), nilaiP: num(r[8]), skorD: num(r[9]), nilaiD: num(r[10])
+  };
+}
+
+function battleBuat_(email, lawan, item, skor) {
+  skor = validasiSkorBattle_(item, skor);
+  var cfg = ambilConfig_(), saya = pesertaDariEmail_(email), target = null;
+  if (lawan) {
+    lawan = String(lawan).toUpperCase();
+    target = rekapSemua_().list.filter(function (x) { return tokenPeserta_(x.em) === lawan; })[0];
+    if (!target) throw { kode: 'tidak_ditemukan', pesan: 'lawan' };
+    if (target.em === saya.em) throw { kode: 'data_tidak_valid', pesan: 'diri_sendiri' };
+  }
+  return denganKunci_(function () {
+    var b = battleBaris_();
+    rapikanBattle_(b.sh, b.rows);
+    var aktif = b.rows.filter(function (r) { return normEmail_(r[3]) === saya.em && r[11] === 'menunggu'; }).length;
+    if (aktif >= BATTLE_MAKS_AKTIF) throw { kode: 'batas_battle', pesan: String(BATTLE_MAKS_AKTIF) };
+    var id = 'B' + Utilities.getUuid().replace(/-/g, '').slice(0, 9).toUpperCase();
+    var batas = Utilities.formatDate(new Date(Date.now() + BATTLE_JAM * 3600000), TZ, 'yyyy-MM-dd HH:mm');
+    var row = [id, sekarang_(), item, saya.em, teks_(saya.nama, 80), target ? target.em : '', target ? teks_(target.nama, 80) : '',
+      skor, nilaiItem_(cfg, saya.gender, saya.matra, item, skor), '', '', 'menunggu', batas, '', ''];
+    b.sh.appendRow(row);
+    return { ok: true, battle: battlePub_(row, saya.em) };
+  });
+}
+
+function battleJawab_(email, id, skor) {
+  var cfg = ambilConfig_(), saya = pesertaDariEmail_(email);
+  return denganKunci_(function () {
+    var b = battleBaris_();
+    rapikanBattle_(b.sh, b.rows);
+    var i = b.rows.map(function (r) { return String(r[0]); }).indexOf(String(id));
+    if (i < 0) throw { kode: 'tidak_ditemukan' };
+    var r = b.rows[i];
+    skor = validasiSkorBattle_(String(r[2]), skor);
+    if (r[11] !== 'menunggu') throw { kode: 'battle_tutup', pesan: String(r[11]) };
+    if (normEmail_(r[3]) === saya.em) throw { kode: 'data_tidak_valid', pesan: 'diri_sendiri' };
+    if (r[5] && normEmail_(r[5]) !== saya.em) throw { kode: 'tidak_ditemukan' };
+    var nilai = nilaiItem_(cfg, saya.gender, saya.matra, String(r[2]), skor), nP = Number(r[8]), sP = Number(r[7]);
+    var pemenang = nilai > nP ? 'ditantang' : nilai < nP ? 'penantang' : (skor > sP ? 'ditantang' : skor < sP ? 'penantang' : 'seri');
+    r[5] = saya.em; r[6] = teks_(saya.nama, 80); r[9] = skor; r[10] = nilai; r[11] = 'selesai'; r[13] = pemenang; r[14] = sekarang_();
+    b.sh.getRange(i + 2, 1, 1, KOLOM_BATTLE.length).setValues([r]);
+    return { ok: true, battle: battlePub_(r, saya.em) };
+  });
+}
+
+function battleTolak_(email, id) {
+  var me = normEmail_(email);
+  return denganKunci_(function () {
+    var b = battleBaris_();
+    var i = b.rows.map(function (r) { return String(r[0]); }).indexOf(String(id));
+    if (i < 0) throw { kode: 'tidak_ditemukan' };
+    var r = b.rows[i];
+    if (normEmail_(r[5]) !== me || r[11] !== 'menunggu') throw { kode: 'tidak_ditemukan' };
+    b.sh.getRange(i + 2, 12).setValue('ditolak');
+    r[11] = 'ditolak';
+    return { ok: true, battle: battlePub_(r, me) };
+  });
+}
+
+function battleDaftar_(email) {
+  var saya = pesertaDariEmail_(email), me = saya.em;
+  var b = battleBaris_();
+  if (b.rows.some(function (r) { return r[11] === 'menunggu' && String(r[12]) < sekarang_(); })) denganKunci_(function () { rapikanBattle_(b.sh, b.rows); });
+  var milik = b.rows.filter(function (r) { return normEmail_(r[3]) === me || normEmail_(r[5]) === me; });
+  var rekor = { menang: 0, kalah: 0, seri: 0 };
+  var list = milik.map(function (r) { var x = battlePub_(r, me); if (x.hasil) rekor[x.hasil]++; return x; })
+    .sort(function (a, c) { return a.dibuat < c.dibuat ? 1 : -1; }).slice(0, 40);
+  return { ok: true, token: tokenPeserta_(me), rekor: rekor, battle: list };
+}
+
+function battleLihat_(id) {
+  var b = battleBaris_();
+  var r = b.rows.filter(function (x) { return String(x[0]) === String(id); })[0];
+  if (!r) throw { kode: 'tidak_ditemukan' };
+  if (r[11] === 'menunggu' && String(r[12]) < sekarang_()) r[11] = 'kedaluwarsa';
+  var x = battlePub_(r, '');
+  delete x.peran; delete x.hasil;
+  return { ok: true, battle: x };
 }
 
 /* ------------------------------------------------------------------ */

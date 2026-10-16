@@ -277,11 +277,22 @@ const q = new URLSearchParams(location.search);
 let sesi = null;
 try { sesi = JSON.parse(localStorage.getItem('pelatih-garjas-sesi-v1') || 'null'); } catch (e) { }
 const opt = { item: ITEM[q.get('item')] ? q.get('item') : 'pushup', gender: sesi && sesi.profil && sesi.profil.gender === 'Wanita' ? 'Wanita' : 'Pria', mode: 'tes', facing: 'user' };
+// Mode battle: item dan mode dikunci, skor dikirim ke aplikasi setelah tes 1 menit selesai.
+let battle = null;
+try { const bb = JSON.parse(localStorage.getItem('pelatih-garjas-battle-v1') || 'null'); if (q.get('battle') === '1' && bb && !bb.selesai && ITEM[bb.item]) battle = bb; } catch (e) { }
+if (battle) { opt.item = battle.item; opt.mode = 'tes'; }
 let par = {};
 function resetParam() { par = {}; const ps = ITEM[opt.item].param; for (const k in ps) par[k] = ps[k].def; }
 function labelItem() { const it = ITEM[opt.item]; return opt.gender === 'Wanita' && it.namaW ? it.namaW : it.nama; }
 function renderSetup() {
   const it = ITEM[opt.item];
+  if (battle) {
+    const lawan = battle.aksi === 'jawab' ? 'menjawab tantangan ' + (battle.lawanNama || 'casis lain') : battle.lawan ? 'menantang ' + (battle.lawanNama || 'casis lain') : 'membuat tantangan lewat link';
+    let bx = $('#battle-info');
+    if (!bx) { bx = document.createElement('div'); bx.id = 'battle-info'; bx.className = 'card stack'; $('#setup').insertBefore(bx, $('#setup').children[1]); }
+    bx.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2>Mode battle</h2><span class="tag">' + labelItem() + '</span></div><p class="small" style="margin:0">Kamu sedang ' + lawan.replace(/[<>&]/g, '') + '. Lakukan tes 1 menit sampai selesai, lalu kirim skornya. Yang dibandingkan adalah nilai.</p><button type="button" class="btn ghost" id="batal-battle">Batalkan battle</button>';
+    document.querySelectorAll('[data-mode]').forEach((x) => { x.disabled = x.dataset.mode !== 'tes'; });
+  }
   $('#item-chips').innerHTML = Object.keys(ITEM).map((k) => '<button type="button" class="chip" data-item="' + k + '" aria-pressed="' + (k === opt.item) + '">' + (k === 'pullup' ? 'Pull-up / Chinning' : ITEM[k].nama) + '</button>').join('');
   $('#gender-chips').innerHTML = ['Pria', 'Wanita'].map((g) => '<button type="button" class="chip" data-gender="' + g + '" aria-pressed="' + (g === opt.gender) + '">' + it.jenis[g] + '</button>').join('');
   $('#panduan').innerHTML = '<div class="row" style="display:flex;justify-content:space-between;gap:10px;align-items:center"><h2>Cara menaruh HP</h2>' + (it.ujiCoba ? '<span class="tag">Uji coba</span>' : '') + '</div>'
@@ -296,6 +307,8 @@ function renderSetup() {
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'batal-battle') { try { localStorage.removeItem('pelatih-garjas-battle-v1'); } catch (x) { } location.href = './'; return; }
+  if (battle && (b.dataset.item || b.dataset.mode)) return;
   if (b.dataset.item) { opt.item = b.dataset.item; resetParam(); history.replaceState(null, '', '?item=' + opt.item); renderSetup(); return; }
   if (b.dataset.gender) { opt.gender = b.dataset.gender; renderSetup(); return; }
   for (const k of ['mode', 'facing']) {
@@ -501,13 +514,19 @@ function tampilHasil(durasi) {
   if (alasan.length) h += '<p class="small muted" style="margin:0">Tips: ' + esc(it.tips[alasan[0][0]] || 'pastikan posisi HP sesuai panduan dan seluruh badan terlihat.') + '</p>';
   h += '</div>';
   const bisaSimpan = tes && opt.mode === 'tes';
-  if (bisaSimpan) h += '<button class="btn" id="simpan">Simpan ke catatan SIGAP</button>';
+  if (battle) h += bisaSimpan ? '<button class="btn" id="kirim-battle">Kirim skor battle</button>' : '<div class="note small">Battle butuh tes <b>1 menit penuh</b>. Tekan Ulangi untuk mencoba lagi.</div>';
+  else if (bisaSimpan) h += '<button class="btn" id="simpan">Simpan ke catatan SIGAP</button>';
   else h += '<div class="note small">Hanya hasil mode <b>Tes 1 menit</b> yang dijalankan sampai selesai yang bisa disimpan ke catatan.</div>';
   h += '<div class="note small">Kalau hitungan kamera meleset dari hitunganmu, beri tahu admin beserta posisi HP dan kondisi cahayanya.</div>';
   h += '<div class="btns"><button class="btn ghost" id="again">Ulangi</button><a class="btn ghost" href="./">Kembali ke SIGAP</a></div>';
   $('#setup').style.display = 'none';
   const r = $('#result'); r.innerHTML = h; r.style.display = 'flex';
   $('#again').addEventListener('click', () => { r.style.display = 'none'; $('#setup').style.display = 'flex'; window.scrollTo(0, 0); });
+  const kb = $('#kirim-battle');
+  if (kb) kb.addEventListener('click', () => {
+    try { localStorage.setItem('pelatih-garjas-battle-v1', JSON.stringify(Object.assign({}, battle, { skor: S.count, selesai: true, waktu: Date.now() }))); } catch (e) { }
+    location.href = './';
+  });
   const sb = $('#simpan');
   if (sb) sb.addEventListener('click', () => {
     try { localStorage.setItem('pelatih-garjas-kirim-v1', JSON.stringify({ key: opt.item, nilai: S.count, sumber: 'kamera', gender: opt.gender, waktu: Date.now() })); } catch (e) { }

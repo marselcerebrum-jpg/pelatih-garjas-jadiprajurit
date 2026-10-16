@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-15** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-16** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -95,6 +95,22 @@ Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nam
 Wajib: bukti syarat, nama lengkap, email akun JadiPrajurit, jenis kelamin, usia, matra, dan persetujuan data. Opsional: tinggi, berat, domisili, tanggal tes, dan target nilai (bawaan 100). Nomor WhatsApp dan jalur **tidak lagi diminta**; data lama peserta yang sudah terisi tetap tersimpan.
 
 Setelah daftar, peserta melihat halaman sambutan dengan dua ajakan: **Gabung grup WhatsApp** (link dari `link_grup_wa`) dan **Chat admin untuk konsultasi** (nomor dari `wa_admin`, pesan sudah terisi nama, email, matra, dan prediksi nilai). Kedua ajakan juga tampil di Beranda dan Profil. Karena nomor peserta tidak lagi diminta, tab **Simpan Kontak** hanya terisi dari peserta lama; nomor peserta baru didapat admin saat mereka mengirim chat konsultasi.
+
+## Battle
+
+Peserta bisa menantang casis lain lewat menu **Battle** (dari Beranda, Peringkat, atau tombol **Tantang** di setiap baris peringkat). Gerakan battle: push-up, sit-up, dan pull-up/chinning, semuanya lewat **tes kamera 1 menit**.
+
+- Penantang melakukan tes kamera dulu; skornya dikunci, lalu lawan punya waktu **48 jam** untuk menerima atau menolak.
+- Tantangan bisa ditujukan ke casis tertentu atau dikirim **lewat link** (`?b=ID`) ke siapa saja, termasuk teman yang belum terdaftar. Mereka harus daftar atau masuk dulu untuk menjawab.
+- Yang dibandingkan adalah **nilai** sesuai tabel jenis kelamin dan matra masing-masing, sehingga battle pria lawan wanita atau beda matra tetap adil. Bila nilainya sama, jumlah gerakan menentukan; bila tetap sama, hasilnya seri.
+- Maksimal 3 tantangan aktif per orang. Hasil battle bisa dibagikan sebagai story.
+- Data battle tersimpan di tab **Battle** spreadsheet.
+
+## Lari 12 menit: tiga cara mencatat
+
+1. **Stopwatch + hitung putaran** (bawaan): layar boleh mati dan HP tidak panas. Stopwatch tetap berjalan walaupun layar mati atau halaman sempat tertutup. Setelah 12 menit, peserta mengisi jumlah putaran penuh dan sisa meter. Tercatat sebagai catatan mandiri.
+2. **Unggah file GPX dari Strava** (versi gratis): SIGAP membaca titik GPS beserta waktunya, menghitung jarak tepat di menit ke-12, menolak file tanpa waktu, rekaman kurang dari 12 menit, kecepatan tidak wajar, dan file yang sama diunggah dua kali. Tanggal catatan mengikuti tanggal rekaman. File diproses di HP saja.
+3. **GPS langsung di SIGAP**: paling terverifikasi tetapi layar harus menyala. Kini ada **mode hemat daya** (layar hitam, angka redup, pembaruan tiap detik) supaya HP tidak cepat panas.
 
 ## Story per latihan
 

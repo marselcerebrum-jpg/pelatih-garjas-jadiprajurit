@@ -4,8 +4,8 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-15';
-  var BACKEND_DIHARAPKAN = '2026.10.11-8';
+  var VERSI = '2026.10.11-16';
+  var BACKEND_DIHARAPKAN = '2026.10.11-9';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
   var N = window.Nilai, ITEMS = N.ITEMS;
@@ -63,6 +63,8 @@
     if (k === 'tidak_ditemukan') return 'Email belum terdaftar. Periksa penulisannya atau daftar terlebih dahulu.';
     if (k === 'data_tidak_valid') return 'Data belum sesuai' + (e.pesan ? ' (' + e.pesan + ')' : '') + '. Periksa lagi isiannya.';
     if (k === 'sibuk') return 'Server sedang sibuk. Coba lagi beberapa detik lagi.';
+    if (k === 'batas_battle') return 'Kamu sudah punya 3 tantangan aktif. Tunggu sampai dijawab atau kedaluwarsa.';
+    if (k === 'battle_tutup') return 'Tantangan ini sudah ditutup (' + (e.pesan || 'selesai') + ').';
     if (k === 'bukti_kurang') return 'Syarat pendaftaran baru saja berubah. Muat ulang halaman, lalu unggah bukti untuk setiap syarat.';
     if (k === 'bukti_tidak_valid') return 'Bukti ' + (e.pesan || 'syarat') + ' tidak bisa dibaca. Unggah ulang screenshot-nya.';
     return 'Terjadi gangguan di server. Coba lagi sebentar.';
@@ -160,6 +162,7 @@
   function go(t) {
     tab = t;
     if (t === 'peringkat') muatLB(false);
+    if (t === 'battle') { muatBattle(false); muatLB(false); }
     if (t === 'bagikan') siapkanBagikan();
     render(); window.scrollTo(0, 0);
   }
@@ -203,7 +206,8 @@
     });
     if (tolak.length) return { ok: false, pesan: 'Periksa lagi: ' + tolak.join('; ') + '.' };
     ITEMS.forEach(function (it) {
-      var v = items[it.key]; if (v == null || verifAktif(it.key)) return;
+      var vfa = verifAktif(it.key);
+      var v = items[it.key]; if (v == null || (vfa && vfa.terverifikasi !== false)) return;
       var w = WAJAR[it.key][g], lbl = itemLabel(it);
       if (v < w[0] || v > w[1]) tanya.push(lbl + ' ' + fmtNum(v, 1) + ' ' + it.unit + ' di luar kisaran wajar (' + fmtNum(w[0], 0) + '–' + fmtNum(w[1], 0) + ')');
       var prev = catatanTerakhir(it.key);
@@ -257,10 +261,18 @@
     var it = ITEMS.filter(function (i) { return i.key === k.key; })[0];
     if (!it || !isFinite(k.nilai) || Date.now() - (Number(k.waktu) || 0) > 6 * 3600 * 1000) return;
     draft.items[k.key] = k.nilai;
-    draft.verif = draft.verif || {}; draft.verif[k.key] = { sumber: k.sumber === 'gps' ? 'GPS' : 'kamera', nilai: k.nilai };
+    var SUMBER = {
+      gps: { sumber: 'GPS', label: 'Terverifikasi GPS', catatan: 'Terverifikasi GPS', terverifikasi: true, nama: 'lari GPS' },
+      kamera: { sumber: 'kamera', label: 'Terverifikasi kamera', catatan: 'Terverifikasi kamera', terverifikasi: true, nama: 'tes kamera' },
+      gpx: { sumber: 'GPX', label: 'Dari file GPX', catatan: 'Dari file GPX' + (k.jam ? ' (mulai ' + k.jam + ')' : ''), terverifikasi: false, nama: 'file GPX' },
+      putaran: { sumber: 'putaran', label: 'Hitung putaran', catatan: 'Stopwatch + hitung putaran (' + (k.putaran != null ? k.putaran + ' × ' + k.lintasan + ' m' : 'mandiri') + ')', terverifikasi: false, nama: 'stopwatch' }
+    };
+    var info = SUMBER[k.sumber] || SUMBER.kamera;
+    draft.verif = draft.verif || {}; draft.verif[k.key] = Object.assign({ nilai: k.nilai }, info);
+    if (k.tanggal && /^\d{4}-\d{2}-\d{2}$/.test(k.tanggal) && k.tanggal <= todayStr()) draft.date = k.tanggal;
     tab = 'catat';
     setTimeout(function () {
-      toast('Hasil ' + (k.sumber === 'gps' ? 'lari GPS' : 'tes kamera') + ' sudah diisikan' + (k.gender && k.gender !== gender() ? ', tetapi jenis kelamin saat tes berbeda dengan profilmu. Periksa lagi' : '') + '. Tekan Simpan catatan.');
+      toast('Hasil ' + info.nama + ' sudah diisikan' + (k.tanggal && k.tanggal !== todayStr() ? ' dengan tanggal ' + fmtDate(k.tanggal) : '') + (k.gender && k.gender !== gender() ? ', tetapi jenis kelamin saat tes berbeda dengan profilmu. Periksa lagi' : '') + '. Tekan Simpan catatan.');
     }, 300);
   }
   function verifAktif(key) { var v = draft.verif && draft.verif[key]; return v && draft.items[key] === v.nilai ? v : null; }
@@ -412,7 +424,7 @@
     if (!EMAIL_RE.test(e)) { setAuthMsg('Masukkan email yang valid.'); return; }
     busy = true; authMsg = ''; render();
     api('masuk', { email: e }).then(function (j) {
-      busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; S.catatan = gabungAntre(S.catatan); simpanSesi(); kirimAntre(); terimaHasil();
+      busy = false; S = { email: j.profil.email, profil: j.profil, catatan: j.catatan || [] }; S.catatan = gabungAntre(S.catatan); simpanSesi(); kirimAntre(); terimaHasil(); if (lsGet(LS_BATTLE)) prosesBattle(); var blk = lsGet(LS_BATTLE_LINK); if (blk) { muatLihatBattle(blk); tab = 'battle'; muatLB(false); } muatBattle(true);
       tab = 'beranda'; render(); toast('Selamat datang kembali, ' + String(j.profil.name).split(' ')[0] + '!');
     }, function (err) {
       busy = false; authMsg = pesanError(err);
@@ -430,7 +442,7 @@
     if (!S.catatan.length) {
       h += '<div class="card stack"><h2>Mulai dengan tes awal</h2><p class="small muted" style="margin:0">Lakukan dan catat lari 12 menit, ' + esc(itemLabel(ITEMS[1]).toLowerCase()) + ', sit-up, push-up, dan shuttle run sebagai titik mulai. Gunakan stopwatch di menu Catat supaya waktunya sama seperti tes.</p><button class="btn" data-go="catat">Catat tes awal</button></div>';
       if (!p.testDate) h += '<div class="card stack"><p class="small muted" style="margin:0">Isi tanggal tes jasmani di menu Profil supaya hitung mundur dan program latihan menyesuaikan.</p><button class="btn ghost" data-go="profil">Isi tanggal tes</button></div>';
-      return h + adminCard() + grupCard();
+      return h + kartuBattleBeranda() + adminCard() + grupCard();
     }
     var g = cur.garjas, gap = g != null ? Math.round((tg - g) * 10) / 10 : null;
     var weak = ITEMS.filter(function (it) { return cur.scores[it.key] != null && cur.scores[it.key] < tg; }).sort(function (a, b) { return cur.scores[a.key] - cur.scores[b.key]; });
@@ -442,6 +454,7 @@
     h += '<div class="row" style="align-items:center"><span class="soft">' + (sy && sy.rankNilai ? 'Peringkat #' + sy.rankNilai + ' dari ' + LB.data.totalNilai + ' casis' : (sy && !sy.lengkap ? 'Catat kelima item untuk masuk peringkat' : '')) + '</span><button type="button" class="btn small" data-go="bagikan" style="background:var(--hero-ink);color:var(--hero)">' + icon('share', 18) + 'Bagikan</button></div>';
     h += '</section>';
     h += kartuBagikanLatihan();
+    h += kartuBattleBeranda();
 
     var nAntre = S.catatan.filter(function (l) { return l.tertunda; }).length;
     if (nAntre) h += '<div class="note warnbox small">' + nAntre + ' catatan tersimpan di HP dan menunggu dikirim. Pastikan koneksi internet menyala.</div>';
@@ -474,7 +487,7 @@
     h += '<button class="btn ghost" id="confirm-admin">Mulai pakai SIGAP</button>';
     return h;
   }
-  function konfirmasiAdmin() { sambut = false; tab = 'beranda'; render(); }
+  function konfirmasiAdmin() { sambut = false; tab = 'beranda'; var blk = lsGet(LS_BATTLE_LINK); if (blk) { muatLihatBattle(blk); bukaBattle(); return; } muatBattle(true); render(); }
   function adminCard(judul) {
     if (!CFG || !CFG.waAdmin) return '';
     return '<div class="card stack"><h2>' + esc(judul || 'Konsultasi dengan admin') + '</h2><p class="small muted" style="margin:0">Bingung menyusun latihan atau ingin tahu peluangmu? Chat admin JadiPrajurit untuk konsultasi.</p><a class="btn ghost" href="' + esc(linkChatAdmin()) + '" target="_blank" rel="noopener">Chat admin untuk konsultasi</a></div>';
@@ -489,13 +502,13 @@
   function viewCatat() {
     var h = '<div class="top"><div><h1>Catat latihan</h1><div class="sub">Isi hasil yang kamu lakukan hari ini. Item yang tidak dilatih boleh dikosongkan.</div></div></div>';
     h += viewTimer();
-    h += '<div class="card stack"><div class="row"><h2>Lari 12 menit dengan GPS</h2><span class="tag good">Terverifikasi</span></div><p class="small muted" style="margin:0">Jarak dihitung GPS dan diperiksa sensor langkah, lalu bisa langsung disimpan ke catatan. Layar HP harus tetap menyala selama lari.</p><a class="btn ghost" href="lari.html">Coba sekarang</a></div>';
+    h += '<div class="card stack"><div class="row"><h2>Catat lari 12 menit</h2><span class="tag good">Baru</span></div><p class="small muted" style="margin:0">Pilih caranya: stopwatch + hitung putaran (layar boleh mati), unggah file GPX dari Strava, atau GPS langsung di SIGAP.</p><div class="btns"><a class="btn ghost small" href="lari.html?metode=putaran">Stopwatch</a><a class="btn ghost small" href="lari.html?metode=gpx">File GPX</a><a class="btn ghost small" href="lari.html?metode=gps">GPS</a></div></div>';
     h += '<div class="card stack"><div class="row"><h2>Tes kamera</h2><span class="tag good">Terverifikasi</span></div><p class="small muted" style="margin:0">Taruh HP sesuai panduan. Kamera menghitung gerakan yang sah selama 1 menit, lalu hasilnya bisa langsung disimpan ke catatan.</p><div class="btns"><a class="btn ghost small" href="kamera.html?item=pushup">Push-up</a><a class="btn ghost small" href="kamera.html?item=situp">Sit-up</a><a class="btn ghost small" href="kamera.html?item=pullup">' + (gender() === 'Wanita' ? 'Chinning' : 'Pull-up') + '</a></div></div>';
     h += '<div class="card stack"><label class="f">Tanggal<input class="in" type="date" id="f-date" value="' + esc(draft.date) + '" max="' + todayStr() + '"></label>';
     ITEMS.forEach(function (it) {
       var v = draft.items[it.key], s = v != null ? score(it.key, v) : null;
       var vf = verifAktif(it.key);
-      h += '<div class="logrow"><label class="f" for="f-' + it.key + '">' + esc(itemLabel(it)) + ' (' + it.unit + ')' + (vf ? ' <span class="tag good" id="vf-' + it.key + '">Terverifikasi ' + vf.sumber + '</span>' : '') + '</label><span></span><input class="in" type="number" inputmode="decimal" id="f-' + it.key + '" data-item="' + it.key + '" min="' + it.min + '" max="' + it.max + '" step="' + it.step + '" placeholder="' + it.ph + '" value="' + (v != null ? esc(v) : '') + '"><span class="hint" id="h-' + it.key + '">' + (s != null ? 'Nilai ' + fmtNum(s, 0) : '') + '</span></div>';
+      h += '<div class="logrow"><label class="f" for="f-' + it.key + '">' + esc(itemLabel(it)) + ' (' + it.unit + ')' + (vf ? ' <span class="tag' + (vf.terverifikasi === false ? '' : ' good') + '" id="vf-' + it.key + '">' + esc(vf.label || 'Terverifikasi ' + vf.sumber) + '</span>' : '') + '</label><span></span><input class="in" type="number" inputmode="decimal" id="f-' + it.key + '" data-item="' + it.key + '" min="' + it.min + '" max="' + it.max + '" step="' + it.step + '" placeholder="' + it.ph + '" value="' + (v != null ? esc(v) : '') + '"><span class="hint" id="h-' + it.key + '">' + (s != null ? 'Nilai ' + fmtNum(s, 0) : '') + '</span></div>';
     });
     h += '<label class="f">Catatan (opsional)<input class="in" type="text" id="f-note" maxlength="200" value="' + esc(draft.note) + '" placeholder="Misal: cuaca panas, kaki agak pegal"></label>';
     h += '<label style="display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;font-weight:600"><input type="checkbox" id="f-sim" style="width:22px;height:22px"' + (draft.sim ? ' checked' : '') + '> Ini simulasi tes lengkap (urutan seperti tes asli)</label>';
@@ -521,7 +534,7 @@
     var before = currentScores();
     var bests = {}; ITEMS.forEach(function (it) { var ser = itemSeries(it.key); if (ser.length) bests[it.key] = Math.max.apply(null, ser.map(function (p) { return p.s; })); });
     var sim = draft.sim && isComplete(items);
-    var catVerif = ITEMS.filter(function (it) { return verifAktif(it.key); }).map(function (it) { return 'Terverifikasi ' + draft.verif[it.key].sumber + ': ' + itemLabel(it).toLowerCase() + ' ' + fmtNum(items[it.key], 0); });
+    var catVerif = ITEMS.filter(function (it) { return verifAktif(it.key); }).map(function (it) { var v = draft.verif[it.key]; return (v.catatan || 'Terverifikasi ' + v.sumber) + ': ' + itemLabel(it).toLowerCase() + ' ' + fmtNum(items[it.key], 0); });
     var noteAkhir = [(draft.note || '').trim()].concat(catVerif).filter(Boolean).join(' · ');
     var log = { id: uid(), date: draft.date, items: items, sim: sim, note: noteAkhir.slice(0, 200) };
     S.catatan.push(log);
@@ -636,6 +649,10 @@
     var dl = daysToTest(); if (dl != null && dl > 0) lines.push('Tes jasmani: ' + dl + ' hari lagi');
     var range = fmtDate(a) + ' – ' + fmtDate(b), body = lines.join('\n');
     return { range: range, body: body, full: 'Ringkasan latihan jasmani ' + String(S.profil.name).split(' ')[0] + ', ' + range + '\n' + body + '\n\nDicatat dengan SIGAP, aplikasi JadiPrajurit' };
+  }
+  function salinTeks(t, pesan) {
+    var cad = function () { prompt('Salin teks ini:', t); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { toast(pesan || 'Disalin.'); }, cad); else cad();
   }
   function copyText(t) {
     function fallback() {
@@ -770,6 +787,7 @@
       if (S.catatan.length) h += '<button type="button" class="btn small" data-go="bagikan" style="background:var(--hero-ink);color:var(--hero);align-self:flex-start">' + icon('share', 18) + 'Bagikan posisiku</button>';
     }
     h += '</div>';
+    h += '<button type="button" class="btn ghost" data-go-battle="1">Battle: tantang casis lain</button>';
     h += '<div class="chips" role="group" aria-label="Jenis peringkat">' + [['nilai', 'Nilai jasmani'], ['rajin', 'Paling rajin minggu ini']].map(function (o) { return '<button type="button" class="chip" data-lbmode="' + o[0] + '" aria-pressed="' + (lbMode === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>';
     h += '<div class="chips" role="group" aria-label="Filter matra">' + ['Semua', 'AD', 'AL', 'AU'].map(function (m) { return '<button type="button" class="chip" data-lbmatra="' + m + '" aria-pressed="' + (lbMatra === m) + '">' + (m === 'Semua' ? 'Semua matra' : 'TNI ' + m) + '</button>'; }).join('') + '</div>';
     var list = (lbMode === 'nilai' ? d.nilai : d.rajin).filter(function (x) { return lbMatra === 'Semua' || x.matra === lbMatra; }).slice(0, 50);
@@ -777,7 +795,7 @@
     if (!list.length) h += '<p class="small muted" style="margin:8px">Belum ada casis di peringkat ini. Jadilah yang pertama!</p>';
     list.forEach(function (x, i) {
       var val = lbMode === 'nilai' ? fmtNum(x.nilai, 1) : x.hari + ' hari';
-      h += '<div class="lb-row' + (x.saya ? ' saya' : '') + '"><span class="lb-rank">' + (i + 1) + '</span><div><div style="font-weight:700">' + esc(x.nama) + (x.saya ? ' <span class="tag">Kamu</span>' : '') + '</div><div class="tiny muted">' + esc('TNI ' + x.matra + ', ' + x.gender) + '</div></div><span class="lb-val">' + esc(val) + '</span></div>';
+      h += '<div class="lb-row' + (x.saya ? ' saya' : '') + '"><span class="lb-rank">' + (i + 1) + '</span><div><div style="font-weight:700">' + esc(x.nama) + (x.saya ? ' <span class="tag">Kamu</span>' : '') + '</div><div class="tiny muted">' + esc('TNI ' + x.matra + ', ' + x.gender) + '</div></div><span class="lb-val">' + esc(val) + '</span>' + (x.token ? '<button type="button" class="linkbtn" data-btantang="' + esc(x.token) + '" aria-label="Tantang ' + esc(x.nama) + ' battle">Tantang</button>' : '') + '</div>';
     });
     h += '</div><div class="btns"><button class="btn ghost small" id="lb-refresh"' + (LB.loading ? ' disabled' : '') + '>' + (LB.loading ? 'Memuat…' : 'Perbarui') + '</button></div>';
     h += '<p class="tiny muted" style="margin:0">Peringkat nilai hanya menghitung casis yang sudah mencatat kelima item. Yang tampil hanya nama depan, inisial, dan matra.</p>';
@@ -838,14 +856,14 @@
     return c;
   }
   function siapkanBagikan() {
-    if (!S.catatan.length) return;
+    if (!S.catatan.length && !(share.mode === 'battle' && share.battle)) return;
     share.loading = true; share.err = '';
     var fonts = document.fonts && document.fonts.load ? Promise.all(['800 84px Montserrat', '600 36px Montserrat', '40px "Saira Stencil One"'].map(function (f) { return document.fonts.load(f); })) : Promise.resolve();
     var batas = new Promise(function (r) { setTimeout(r, 2500); });
     Promise.race([Promise.all([fonts, muatLogo(), muatLB(false).catch(function () { })]), batas]).then(function () {
       var D = share.mode === 'latihan' ? dataLatihan(share.logId, share.key) : null;
       if (share.mode === 'latihan' && !D) share.mode = 'ringkasan';
-      var c = D ? gambarLatihan(D) : gambarHasil();
+      var c = share.mode === 'battle' && share.battle ? gambarBattle(share.battle) : D ? gambarLatihan(D) : gambarHasil();
       return new Promise(function (res, rej) { if (c.toBlob) c.toBlob(function (b) { b ? res(b) : rej(); }, 'image/png'); else rej(); });
     }).then(function (blob) {
       if (share.url) URL.revokeObjectURL(share.url);
@@ -854,33 +872,36 @@
     }, function () { share.loading = false; share.err = 'Gambar belum bisa dibuat di browser ini. Kamu tetap bisa membagikan link.'; if (tab === 'bagikan') render(); });
   }
   function viewBagikan() {
-    var h = '<div class="top"><div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn ghost small" data-go="beranda" aria-label="Kembali" style="padding:0 10px">' + icon('back', 20) + '</button><div><h1>Bagikan ' + (share.mode === 'latihan' ? 'latihan' : 'hasil') + '</h1><div class="sub">Ajak teman casis ukur kesiapan fisiknya</div></div></div></div>';
-    if (!S.catatan.length) return h + '<div class="card stack"><p class="small muted" style="margin:0">Catat latihan dulu supaya ada hasil yang bisa dibagikan.</p><button class="btn" data-go="catat">Catat latihan</button></div>';
+    var h = '<div class="top"><div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn ghost small" data-go="beranda" aria-label="Kembali" style="padding:0 10px">' + icon('back', 20) + '</button><div><h1>Bagikan ' + (share.mode === 'battle' ? 'battle' : share.mode === 'latihan' ? 'latihan' : 'hasil') + '</h1><div class="sub">Ajak teman casis ukur kesiapan fisiknya</div></div></div></div>';
+    if (!S.catatan.length && !(share.mode === 'battle' && share.battle)) return h + '<div class="card stack"><p class="small muted" style="margin:0">Catat latihan dulu supaya ada hasil yang bisa dibagikan.</p><button class="btn" data-go="catat">Catat latihan</button></div>';
     var lg = share.mode === 'latihan' && S.catatan.filter(function (x) { return x.id === share.logId; })[0];
+    var modeBattle = share.mode === 'battle' && share.battle;
+    if (!modeBattle) {
     h += '<div class="chips" role="group" aria-label="Pilih isi story">';
     h += '<button type="button" class="chip" data-share-mode="ringkasan" aria-pressed="' + (!lg) + '">Semua latihan</button>';
     var lgUntuk = lg || sortedLogs()[sortedLogs().length - 1];
     ITEMS.forEach(function (it) { if (lgUntuk.items[it.key] != null) h += '<button type="button" class="chip" data-bagikan="' + esc(lgUntuk.id) + '|' + it.key + '" aria-pressed="' + (!!lg && share.key === it.key) + '">' + esc(itemLabel(it)) + '</button>'; });
     h += '</div>';
     if (lgUntuk) h += '<p class="tiny muted" style="margin:-6px 0 0">Latihan per item diambil dari catatan ' + esc(fmtDate(lgUntuk.date)) + '. Untuk tanggal lain, buka Riwayat di menu Progres.</p>';
+    }
     h += '<div class="card stack" style="align-items:center">';
     if (share.loading || (!share.url && !share.err)) h += '<div class="share-prev" style="display:flex;align-items:center;justify-content:center"><span class="spin" aria-hidden="true"></span></div>';
     else if (share.url) h += '<img class="share-prev" src="' + share.url + '" alt="Gambar hasil latihan JadiPrajurit: prediksi nilai jasmani ' + fmtNum(currentScores().garjas, 1) + '">';
     if (share.err) h += '<p class="small warn" style="margin:0">' + esc(share.err) + '</p>';
     h += '<div class="btns" style="width:100%">';
     if (navigator.share) h += '<button class="btn" id="share-native"' + (share.loading ? ' disabled' : '') + '>' + icon('share', 18) + 'Bagikan</button>';
-    if (share.url) h += '<a class="btn ghost" href="' + share.url + '" download="' + (lg ? 'latihan-' + share.key + '-sigap.png' : 'hasil-sigap-jadiprajurit.png') + '">Unduh gambar</a>';
+    if (share.url) h += '<a class="btn ghost" href="' + share.url + '" download="' + (modeBattle ? 'battle-sigap.png' : lg ? 'latihan-' + share.key + '-sigap.png' : 'hasil-sigap-jadiprajurit.png') + '">Unduh gambar</a>';
     h += '</div><p class="tiny muted" style="margin:0;text-align:center">Ukuran pas untuk Instagram Story dan Status WhatsApp.</p></div>';
     var link = linkBagikan();
     h += '<div class="card stack"><h2>Link hasilmu</h2><div class="small" style="word-break:break-all;background:var(--line2);border-radius:10px;padding:10px 12px">' + esc(link) + '</div>';
-    var teksNow = lg ? teksLatihan(dataLatihan(share.logId, share.key)) : teksBagikan();
+    var teksNow = modeBattle ? teksBattle(share.battle) : lg ? teksLatihan(dataLatihan(share.logId, share.key)) : teksBagikan();
     h += '<div class="btns"><button class="btn ghost small" id="share-copy">Salin link</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(teksNow + ' ' + link) + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a></div>';
     h += '<p class="tiny muted" style="margin:0">Yang terlihat orang lain hanya nama depan, inisial, matra, dan nilaimu. Email tidak pernah ditampilkan.</p></div>';
     return h;
   }
   function bagikanNative() {
     var Dn = share.mode === 'latihan' ? dataLatihan(share.logId, share.key) : null;
-    var teksN = Dn ? teksLatihan(Dn) : teksBagikan();
+    var teksN = share.mode === 'battle' && share.battle ? teksBattle(share.battle) : Dn ? teksLatihan(Dn) : teksBagikan();
     var link = linkBagikan(), data = { title: 'Hasil latihan SIGAP', text: teksN, url: link };
     try {
       if (share.blob && window.File) {
@@ -993,6 +1014,149 @@
     var h = '<div class="card stack goodcard"><div class="row"><h2>Latihan tersimpan</h2><button type="button" class="linkbtn" id="tutup-bagikan-latihan">Tutup</button></div><p class="small muted" style="margin:0">Bagikan hasil latihanmu ke Instagram Story atau Status WhatsApp.</p><div class="btns">';
     it.forEach(function (i) { h += '<button type="button" class="btn ghost small" data-bagikan="' + esc(l.id) + '|' + i.key + '">' + esc(itemLabel(i)) + '</button>'; });
     return h + '</div></div>';
+  }
+
+  /* ---------------- Battle ---------------- */
+  var LS_BATTLE = 'pelatih-garjas-battle-v1', LS_BATTLE_LINK = 'pelatih-garjas-battle-link';
+  var ITEM_BATTLE = ['pushup', 'situp', 'pullup'];
+  var BT = { data: null, loading: false, err: '', at: 0, lihat: null, buat: { item: 'pushup', lawan: '' } };
+  function namaItem(k) { var it = ITEMS.filter(function (i) { return i.key === k; })[0]; return it ? itemLabel(it) : k; }
+  function muatBattle(paksa) {
+    if (!S.email || BT.loading) return;
+    if (!paksa && BT.data && Date.now() - BT.at < 60000) return;
+    BT.loading = true;
+    api('battleDaftar', { email: S.email }).then(function (j) {
+      BT.data = j; BT.at = Date.now(); BT.loading = false; BT.err = '';
+      if (tab === 'battle' || tab === 'beranda') softRender();
+    }, function (e) { BT.loading = false; BT.err = pesanError(e); if (tab === 'battle') render(); });
+  }
+  function muatLihatBattle(id) {
+    BT.lihat = { id: id, data: null, err: '' };
+    api('battle', { id: id }, 'GET').then(function (j) { if (BT.lihat && BT.lihat.id === id) { BT.lihat.data = j.battle; if (tab === 'battle') render(); } },
+      function (e) { if (BT.lihat && BT.lihat.id === id) { BT.lihat.err = e && e.kode === 'tidak_ditemukan' ? 'Tantangan ini tidak ditemukan.' : pesanError(e); if (tab === 'battle') render(); } });
+  }
+  function bukaBattle() { muatBattle(true); muatLB(false); go('battle'); }
+  function mulaiBattle(o) {
+    lsSet(LS_BATTLE, Object.assign({ waktu: Date.now() }, o));
+    location.href = 'kamera.html?item=' + encodeURIComponent(o.item) + '&battle=1';
+  }
+  // Skor dari halaman Tes Kamera dikirim ke server setelah kembali ke aplikasi.
+  function prosesBattle() {
+    var b = lsGet(LS_BATTLE);
+    if (!b || !S.email || !b.selesai) return;
+    lsSet(LS_BATTLE, null);
+    if (Date.now() - (Number(b.waktu) || 0) > 3 * 3600 * 1000) { toast('Skor battle sudah kedaluwarsa. Ulangi tes kameranya.'); return; }
+    tab = 'battle';
+    var p = b.aksi === 'jawab' ? api('battleJawab', { email: S.email, id: b.id, skor: b.skor }) : api('battleBuat', { email: S.email, lawan: b.lawan || '', item: b.item, skor: b.skor });
+    p.then(function (j) {
+      var x = j.battle; BT.baru = x; lsSet(LS_BATTLE_LINK, null);
+      toast(b.aksi === 'jawab' ? (x.hasil === 'menang' ? 'Kamu menang battle!' : x.hasil === 'seri' ? 'Battle berakhir seri.' : 'Kamu kalah kali ini. Ayo latihan lagi!') : 'Tantangan terkirim! Kirim link-nya ke lawanmu.');
+      muatBattle(true); render();
+    }, function (e) { toast(pesanError(e)); muatBattle(true); render(); });
+  }
+  function teksUndangBattle(x) {
+    return 'Aku menantangmu battle ' + namaItem(x.item).toLowerCase() + ' 1 menit di SIGAP JadiPrajurit! Skorku ' + x.skorP + ' kali. Berani? Jawab sebelum ' + x.batas + ': ' + location.origin + location.pathname + '?b=' + x.id;
+  }
+  function kartuBattle(x) {
+    var saya = x.peran === 'penantang', lawan = saya ? (x.ditantang || 'Siapa saja lewat link') : x.penantang;
+    var skorSaya = saya ? x.skorP : x.skorD, nilaiSaya = saya ? x.nilaiP : x.nilaiD, skorLawan = saya ? x.skorD : x.skorP, nilaiLawan = saya ? x.nilaiD : x.nilaiP;
+    var label = { menang: '<span class="tag good">Menang</span>', kalah: '<span class="tag">Kalah</span>', seri: '<span class="tag">Seri</span>' }[x.hasil] || { menunggu: '<span class="tag">Menunggu</span>', ditolak: '<span class="tag">Ditolak</span>', kedaluwarsa: '<span class="tag">Kedaluwarsa</span>' }[x.status] || '';
+    var h = '<div class="hist"><div class="row"><span style="font-weight:700">' + esc(namaItem(x.item)) + ' · vs ' + esc(lawan) + '</span>' + label + '</div>';
+    h += '<div class="small muted">Kamu ' + (skorSaya != null ? skorSaya + ' kali (nilai ' + fmtNum(nilaiSaya, 0) + ')' : 'belum tes') + ' · lawan ' + (skorLawan != null ? skorLawan + ' kali (nilai ' + fmtNum(nilaiLawan, 0) + ')' : 'belum tes') + '</div>';
+    if (x.status === 'menunggu' && saya) h += '<div class="btns"><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(teksUndangBattle(x)) + '" target="_blank" rel="noopener">Kirim link ke lawan</a><button type="button" class="btn ghost small" data-bsalin="' + esc(x.id) + '">Salin link</button></div><div class="tiny muted">Berlaku sampai ' + esc(x.batas) + '</div>';
+    if (x.status === 'menunggu' && !saya) h += '<div class="btns"><button type="button" class="btn small" data-bjawab="' + esc(x.id) + '|' + esc(x.item) + '|' + esc(x.penantang) + '">Terima & mulai tes kamera</button><button type="button" class="btn ghost small" data-btolak="' + esc(x.id) + '">Tolak</button></div><div class="tiny muted">Jawab sebelum ' + esc(x.batas) + '</div>';
+    if (x.status === 'selesai') h += '<div class="btns"><button type="button" class="btn ghost small" data-bshare="' + esc(x.id) + '">Bagikan hasil battle</button></div>';
+    return h + '</div>';
+  }
+  function viewBattle() {
+    var h = '<div class="top"><div><h1>Battle</h1><div class="sub">Tantang casis lain lewat tes kamera 1 menit. Nilai yang lebih tinggi menang.</div></div></div>';
+    if (BT.data) {
+      var r = BT.data.rekor;
+      h += '<div class="hero"><div class="soft">Rekor battle-mu</div><div class="grid2" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><div class="big" style="font-size:40px">' + r.menang + '</div><div class="soft">menang</div></div><div><div class="big" style="font-size:40px">' + r.kalah + '</div><div class="soft">kalah</div></div><div><div class="big" style="font-size:40px">' + r.seri + '</div><div class="soft">seri</div></div></div></div>';
+    }
+    // Tantangan dari link
+    if (BT.lihat) {
+      var L = BT.lihat.data;
+      h += '<div class="card stack goodcard"><h2>Tantangan untukmu</h2>';
+      if (BT.lihat.err) h += '<p class="small warn" style="margin:0">' + esc(BT.lihat.err) + '</p>';
+      else if (!L) h += '<p class="small muted" style="margin:0">Memuat tantangan…</p>';
+      else {
+        h += '<p class="small" style="margin:0"><b>' + esc(L.penantang) + '</b> menantang battle <b>' + esc(namaItem(L.item).toLowerCase()) + '</b> 1 menit dengan skor <b>' + L.skorP + ' kali</b> (nilai ' + fmtNum(L.nilaiP, 0) + ').</p>';
+        var milikSendiri = BT.data && BT.data.battle.some(function (x) { return x.id === L.id && x.peran === 'penantang'; });
+        if (L.status !== 'menunggu') h += '<p class="small muted" style="margin:0">Tantangan ini sudah ' + esc(L.status) + '.</p>';
+        else if (milikSendiri) h += '<p class="small muted" style="margin:0">Ini tantanganmu sendiri. Kirim link-nya ke teman.</p>';
+        else if (!L.terbuka && !(BT.data && BT.data.battle.some(function (x) { return x.id === L.id; }))) h += '<p class="small muted" style="margin:0">Tantangan ini ditujukan untuk casis lain.</p>';
+        else h += '<button type="button" class="btn" data-bjawab="' + esc(L.id) + '|' + esc(L.item) + '|' + esc(L.penantang) + '">Terima & mulai tes kamera</button><div class="tiny muted">Berlaku sampai ' + esc(L.batas) + '</div>';
+      }
+      h += '<button type="button" class="linkbtn" id="b-tutup-link">Tutup</button></div>';
+    }
+    if (BT.err) h += '<div class="note warnbox small">' + esc(BT.err) + '</div>';
+    if (!BT.data) return h + '<div class="card" style="text-align:center"><span class="spin" aria-hidden="true"></span> Memuat battle…</div>';
+    var list = BT.data.battle, masuk = list.filter(function (x) { return x.status === 'menunggu' && x.peran === 'ditantang'; });
+    if (masuk.length) { h += '<div class="card stack"><h2>Tantangan masuk</h2>'; masuk.forEach(function (x) { h += kartuBattle(x); }); h += '</div>'; }
+    // Buat tantangan
+    var lawanList = [], ada = {};
+    if (LB.data) (LB.data.nilai || []).concat(LB.data.rajin || []).forEach(function (x) { if (x.token && !ada[x.token]) { ada[x.token] = 1; lawanList.push(x); } });
+    h += '<div class="card stack"><h2>Buat tantangan</h2><div class="f">Gerakan<div class="chips" role="group" aria-label="Gerakan battle">';
+    ITEM_BATTLE.forEach(function (k) { h += '<button type="button" class="chip" data-bitem="' + k + '" aria-pressed="' + (BT.buat.item === k) + '">' + esc(namaItem(k)) + '</button>'; });
+    h += '</div></div><label class="f">Lawan<select class="in" id="b-lawan"><option value="">Teman lewat link (siapa saja yang membuka link)</option>';
+    lawanList.forEach(function (x) { h += '<option value="' + esc(x.token) + '"' + (BT.buat.lawan === x.token ? ' selected' : '') + '>' + esc(x.nama + ' · TNI ' + x.matra) + '</option>'; });
+    h += '</select></label>';
+    if (!LB.data) h += '<p class="tiny muted" style="margin:0">Daftar casis sedang dimuat dari Peringkat…</p>';
+    h += '<button class="btn" id="b-mulai">Mulai tes kamera</button>';
+    h += '<p class="tiny muted" style="margin:0">Skormu dikunci setelah tes kamera 1 menit selesai, lalu lawan punya waktu 48 jam untuk menjawab. Yang dibandingkan nilai sesuai tabel jenis kelamin dan matra masing-masing, jadi adil untuk semua. Maksimal 3 tantangan aktif.</p></div>';
+    var keluar = list.filter(function (x) { return x.status === 'menunggu' && x.peran === 'penantang'; });
+    if (keluar.length) { h += '<div class="card stack"><h2>Menunggu lawan</h2>'; keluar.forEach(function (x) { h += kartuBattle(x); }); h += '</div>'; }
+    var riwayat = list.filter(function (x) { return x.status !== 'menunggu'; });
+    if (riwayat.length) { h += '<div class="card stack"><h2>Riwayat battle</h2>'; riwayat.slice(0, 15).forEach(function (x) { h += kartuBattle(x); }); h += '</div>'; }
+    return h;
+  }
+  function kartuBattleBeranda() {
+    if (!BT.data) return '';
+    var n = BT.data.battle.filter(function (x) { return x.status === 'menunggu' && x.peran === 'ditantang'; }).length;
+    if (n) return '<div class="card stack goodcard"><h2>Ada ' + n + ' tantangan battle untukmu</h2><p class="small muted" style="margin:0">Jawab sebelum waktunya habis supaya tidak kedaluwarsa.</p><button class="btn" data-go-battle="1">Lihat tantangan</button></div>';
+    return '<div class="card stack"><div class="row"><h2>Battle</h2><span class="tag">Baru</span></div><p class="small muted" style="margin:0">Tantang casis lain battle push-up, sit-up, atau ' + esc(namaItem('pullup').toLowerCase()) + ' lewat tes kamera.</p><button class="btn ghost" data-go-battle="1">Buka Battle</button></div>';
+  }
+  function gambarBattle(x) {
+    var W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H;
+    var g = c.getContext('2d');
+    var MS = "'Montserrat', 'Public Sans', Arial, sans-serif", ST = "'Saira Stencil One', 'Archivo', Arial, sans-serif";
+    var INK = '#F3F2EC', SOFT = '#C3D2BD', HIJAU = '#8CCB86', ORANYE = '#F29A38', LATAR = '#121810';
+    g.fillStyle = LATAR; g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(140,203,134,0.08)'; g.lineWidth = 2;
+    for (var i = 0; i < W; i += 60) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, H); g.stroke(); }
+    for (var j = 0; j < H; j += 60) { g.beginPath(); g.moveTo(0, j); g.lineTo(W, j); g.stroke(); }
+    g.strokeStyle = ORANYE; g.lineWidth = 8;
+    [[80, 220, 1, 1], [1000, 220, -1, 1], [80, 1720, 1, -1], [1000, 1720, -1, -1]].forEach(function (b) { g.beginPath(); g.moveTo(b[0], b[1] + b[3] * 60); g.lineTo(b[0], b[1]); g.lineTo(b[0] + b[2] * 60, b[1]); g.stroke(); });
+    if (logoStiker) g.drawImage(logoStiker, 118, 252, 720, 720 * logoStiker.height / logoStiker.width);
+    g.fillStyle = HIJAU; g.font = '34px ' + ST; g.fillText('// BATTLE SIGAP · ' + namaItem(x.item).toUpperCase() + ' 1 MENIT', 130, 500);
+    var menangP = x.hasil ? (x.peran === 'penantang' ? x.hasil === 'menang' : x.hasil === 'kalah') : false, seri = x.hasil === 'seri';
+    var menangD = !seri && x.hasil && !menangP;
+    function panel(y, nama, skor, nilai, menang) {
+      g.fillStyle = menang ? 'rgba(242,154,56,0.14)' : 'rgba(243,242,236,0.05)'; rr(g, 130, y, 820, 300, 24); g.fill();
+      if (menang) { g.strokeStyle = ORANYE; g.lineWidth = 5; rr(g, 130, y, 820, 300, 24); g.stroke(); }
+      g.fillStyle = INK; g.font = '800 58px ' + MS; g.fillText(nama, 170, y + 84);
+      if (menang) { g.font = '30px ' + ST; var t = 'MENANG', tw = g.measureText(t).width + 40; g.fillStyle = ORANYE; rr(g, 910 - tw, y + 36, tw, 54, 12); g.fill(); g.fillStyle = LATAR; g.fillText(t, 930 - tw, y + 74); }
+      g.fillStyle = menang ? ORANYE : INK; g.font = '170px ' + ST; g.fillText(String(skor), 166, y + 262); var sw = g.measureText(String(skor)).width;
+      g.fillStyle = SOFT; g.font = '52px ' + ST; g.fillText('KALI', 166 + sw + 20, y + 262);
+      g.textAlign = 'right'; g.fillStyle = SOFT; g.font = '600 34px ' + MS; g.fillText('nilai', 910, y + 200); g.fillStyle = INK; g.font = '64px ' + ST; g.fillText(fmtNum(nilai, 0), 910, y + 262); g.textAlign = 'left';
+    }
+    panel(560, x.penantang, x.skorP, x.nilaiP, menangP);
+    g.fillStyle = ORANYE; g.font = '96px ' + ST; g.textAlign = 'center'; g.fillText('VS', 540, 966); g.textAlign = 'left';
+    panel(1010, x.ditantang || '?', x.skorD, x.nilaiD, menangD);
+    g.fillStyle = seri ? HIJAU : INK; g.font = '800 40px ' + MS;
+    g.fillText(seri ? 'Hasil seri! Sama kuatnya.' : (menangP ? x.penantang : x.ditantang) + ' memenangkan battle!', 130, 1400);
+    g.fillStyle = SOFT; g.font = '600 30px ' + MS; g.fillText('Dihitung kamera · nilai sesuai jenis kelamin & matra', 130, 1452);
+    g.strokeStyle = 'rgba(140,203,134,0.35)'; g.lineWidth = 2; g.beginPath(); g.moveTo(130, 1588); g.lineTo(950, 1588); g.stroke();
+    g.fillStyle = INK; g.font = '800 32px ' + MS; g.fillText('Berani tantang aku? Ukur kesiapan fisikmu', 130, 1630); g.fillText('di aplikasi JadiPrajurit.', 130, 1668);
+    g.font = '28px ' + ST; g.fillStyle = ORANYE; g.fillText('TERSEDIA DI', 130, 1712);
+    var px = 318;
+    ['PLAY STORE', 'APP STORE'].forEach(function (t) { var tw = g.measureText(t).width + 36; g.strokeStyle = INK; g.lineWidth = 3; rr(g, px, 1680, tw, 46, 10); g.stroke(); g.fillStyle = INK; g.fillText(t, px + 18, 1712); px += tw + 14; });
+    return c;
+  }
+  function teksBattle(x) {
+    var seri = x.hasil === 'seri', pemenang = x.hasil === 'menang' ? 'Aku menang' : x.hasil === 'kalah' ? (x.peran === 'penantang' ? x.ditantang : x.penantang) + ' menang' : 'Hasilnya seri';
+    return 'Battle ' + namaItem(x.item).toLowerCase() + ' SIGAP: ' + x.penantang + ' ' + x.skorP + ' kali vs ' + x.ditantang + ' ' + x.skorD + ' kali. ' + pemenang + (seri ? '!' : '!') + ' Berani tantang aku? Ukur kesiapan fisikmu di SIGAP, aplikasi JadiPrajurit, tersedia di Play Store dan App Store:';
   }
 
   /* ---------------- Halaman hasil publik (?h=KODE) ---------------- */
@@ -1112,7 +1276,7 @@
     if (landing.aktif) { gate = true; v = viewLanding(); }
     else if (gate) v = authView === 'login' ? viewLogin() : viewDaftar();
     else if (perluSimpanAdmin()) { gate = true; v = viewSimpanAdmin(); }
-    else v = tab === 'catat' ? viewCatat() : tab === 'progres' ? viewProgres() : tab === 'peringkat' ? viewPeringkat() : tab === 'bagikan' ? viewBagikan() : tab === 'program' ? viewProgram() : tab === 'profil' ? viewProfil() : viewBeranda();
+    else v = tab === 'catat' ? viewCatat() : tab === 'progres' ? viewProgres() : tab === 'peringkat' ? viewPeringkat() : tab === 'battle' ? viewBattle() : tab === 'bagikan' ? viewBagikan() : tab === 'program' ? viewProgram() : tab === 'profil' ? viewProfil() : viewBeranda();
     $('#app').innerHTML = '<div class="stack">' + v + '</div>';
     nav.style.display = gate ? 'none' : '';
     if (!gate) renderNav();
@@ -1126,6 +1290,15 @@
     if (b.dataset.bagikan) { var pb = b.dataset.bagikan.split('|'); bagikanLatihan(pb[0], pb[1]); return; }
     if (b.dataset.shareMode) { share.mode = 'ringkasan'; go('bagikan'); return; }
     if (b.id === 'tutup-bagikan-latihan') { terakhirDisimpan = null; render(); return; }
+    if (b.dataset.goBattle) { bukaBattle(); return; }
+    if (b.dataset.btantang) { BT.buat.lawan = b.dataset.btantang; bukaBattle(); return; }
+    if (b.dataset.bitem) { BT.buat.item = b.dataset.bitem; var sl = $('#b-lawan'); if (sl) BT.buat.lawan = sl.value; render(); return; }
+    if (b.id === 'b-mulai') { var sl2 = $('#b-lawan'); BT.buat.lawan = sl2 ? sl2.value : ''; var opt2 = sl2 && sl2.options[sl2.selectedIndex]; mulaiBattle({ aksi: 'buat', item: BT.buat.item, lawan: BT.buat.lawan, lawanNama: BT.buat.lawan && opt2 ? opt2.textContent : '' }); return; }
+    if (b.dataset.bjawab) { var pj = b.dataset.bjawab.split('|'); mulaiBattle({ aksi: 'jawab', id: pj[0], item: pj[1], lawanNama: pj[2] }); return; }
+    if (b.dataset.btolak) { if (!confirm('Tolak tantangan ini?')) return; api('battleTolak', { email: S.email, id: b.dataset.btolak }).then(function () { toast('Tantangan ditolak.'); muatBattle(true); }, function (e) { toast(pesanError(e)); }); return; }
+    if (b.dataset.bsalin) { var xb = BT.data && BT.data.battle.filter(function (y) { return y.id === b.dataset.bsalin; })[0]; if (xb) salinTeks(teksUndangBattle(xb), 'Link tantangan disalin.'); return; }
+    if (b.dataset.bshare) { var xs = BT.data && BT.data.battle.filter(function (y) { return y.id === b.dataset.bshare; })[0]; if (xs) { share.mode = 'battle'; share.battle = xs; go('bagikan', true); } return; }
+    if (b.id === 'b-tutup-link') { BT.lihat = null; lsSet(LS_BATTLE_LINK, null); render(); return; }
     if (b.dataset.pick) { progressPick = b.dataset.pick; render(); return; }
     if (b.dataset.lbmode) { lbMode = b.dataset.lbmode; render(); return; }
     if (b.dataset.lbmatra) { lbMatra = b.dataset.lbmatra; render(); return; }
@@ -1185,8 +1358,15 @@
     api('hasil', { k: landing.kode }, 'GET').then(function (j) { landing.data = j; if (landing.aktif) render(); },
       function (e) { landing.err = e && e.kode === 'tidak_ditemukan' ? 'Hasil ini tidak ditemukan.' : 'Hasil belum bisa dimuat.'; if (landing.aktif) render(); });
   }
+  var mb = location.search.match(/[?&]b=(B[A-Z0-9]{9})/);
+  if (mb) { lsSet(LS_BATTLE_LINK, mb[1]); try { history.replaceState(null, '', location.pathname); } catch (e) { } }
   var sesi = lsGet(LS_SESI);
-  if (sesi && sesi.email && sesi.profil) { S = { email: sesi.email, profil: sesi.profil, catatan: Array.isArray(sesi.catatan) ? sesi.catatan : [] }; terimaHasil(); }
+  if (sesi && sesi.email && sesi.profil) {
+    S = { email: sesi.email, profil: sesi.profil, catatan: Array.isArray(sesi.catatan) ? sesi.catatan : [] }; terimaHasil();
+    if (lsGet(LS_BATTLE)) prosesBattle();
+    var bl = lsGet(LS_BATTLE_LINK); if (bl) { muatLihatBattle(bl); tab = 'battle'; muatLB(false); }
+    muatBattle(true);
+  } else if (lsGet(LS_BATTLE_LINK)) { authMsg = 'Kamu ditantang battle! Daftar atau masuk dulu untuk menjawab tantangannya.'; }
   else { authView = lsGet(LS_KIRIM) ? 'login' : 'daftar'; if (lsGet(LS_KIRIM)) authMsg = 'Masuk dulu untuk menyimpan hasil tesmu.'; }
   muatConfig().then(function () { if (!busy) render(); }, function () { });
   render();
