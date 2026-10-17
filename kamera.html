@@ -71,6 +71,14 @@ input[type=range]{width:100%}
 .brandx img{height:30px;width:auto;display:block}.brandx span{border-left:1px solid var(--line);padding-left:10px}
 .brandx .logo-gelap{display:none}
 @media (prefers-color-scheme: dark){.brandx .logo-terang{display:none}.brandx .logo-gelap{display:block}}
+#arena-hud{position:absolute;left:12px;right:12px;top:calc(130px + env(safe-area-inset-top,0px));pointer-events:none}
+.a-panel{background:rgba(16,21,17,.78);color:#F3F2EC;border-radius:14px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.a-row{display:flex;justify-content:space-between;gap:10px}
+.a-vs{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;text-align:center}
+.a-nm{font-weight:700;font-size:13px}.a-v{font:800 22px Archivo,sans-serif;color:#F29A38}
+.a-hp{height:10px;background:#2B342E;border-radius:5px;overflow:hidden;margin:4px 0}.a-hp i{display:block;height:100%;transition:width .25s}
+.a-sk{font:800 38px Archivo,sans-serif;line-height:1}
+#finish:disabled{opacity:.55}
 </style>
 
 </head>
@@ -141,6 +149,8 @@ input[type=range]{width:100%}
 </div>
 <video id="video" playsinline muted autoplay style="position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none"></video>
 
+<script src="js/config.js"></script>
+<script src="vendor/supabase/supabase.js"></script>
 <script type="module">
 const MP_VER = '0.10.21';
 // Mesin dan model disimpan di situs sendiri supaya tidak bergantung pada server luar; CDN hanya cadangan.
@@ -326,8 +336,8 @@ resetParam(); renderSetup();
 /* ================= Kamera & model ================= */
 let landmarker = null, stream = null, raf = 0, wakeLock = null, audio = null, S = null;
 $('#start').addEventListener('click', mulai);
-$('#cancel').addEventListener('click', () => berhenti(false));
-$('#finish').addEventListener('click', () => berhenti(true));
+$('#cancel').addEventListener('click', () => { if (A && A.fase === 'duel' && !confirm('Keluar dari duel? Skormu dihitung sampai saat ini.')) return; if (A && A.fase === 'duel') { berhenti(true); return; } berhenti(false); if (A) { arenaSiap(false); $('#arena-lobby').style.display = 'flex'; } });
+$('#finish').addEventListener('click', () => { if (A && !S.mulai) { if (A.host) hostMulai(); return; } if (A && A.fase === 'duel' && !confirm('Menyerah dan akhiri duel sekarang?')) return; berhenti(true); });
 
 async function siapkanModel() {
   if (landmarker) return landmarker;
@@ -372,6 +382,7 @@ async function mulai() {
     $('#time-lbl').textContent = opt.mode === 'tes' ? 'Sisa waktu' : 'Durasi';
     $('#debug').style.display = $('#detail-sudut').checked ? 'block' : 'none';
     $('#cam').classList.add('on');
+    if (A) { opt.mode = 'tes'; $('#time').textContent = '1:00'; $('#time').style.color = ''; $('#time-lbl').textContent = 'Duel'; renderHudA(); }
     setStatus('Ambil posisi awal, seluruh badan terlihat', '');
     loop();
   } catch (e) {
@@ -413,9 +424,14 @@ function loop() {
     if (S.countdown) return;
     if (E.ok && E.awal(S.v)) {
       if (!S.siapSejak) S.siapSejak = now;
-      setStatus('Tahan posisi…', 'ok');
-      if (now - S.siapSejak > 1000) hitungMundur();
-    } else { S.siapSejak = 0; setStatus(E.siapMsg, 'bad'); }
+      S.tidakSiapSejak = 0;
+      if (A) { if (now - S.siapSejak > 1000) arenaSiap(true); else setStatus('Tahan posisi…', 'ok'); }
+      else { setStatus('Tahan posisi…', 'ok'); if (now - S.siapSejak > 1000) hitungMundur(); }
+    } else {
+      S.siapSejak = 0;
+      if (A && A.siap && !A.kunciUji) { if (!S.tidakSiapSejak) S.tidakSiapSejak = now; if (now - S.tidakSiapSejak > 2500) arenaSiap(false); }
+      else setStatus(E.siapMsg, 'bad');
+    }
     return;
   }
   if (S.selesai) return;
@@ -461,11 +477,13 @@ function tickWaktu(now) {
   if (opt.mode === 'tes') {
     const sisa = Math.max(0, 60 - det);
     $('#time').textContent = '0:' + String(Math.ceil(sisa)).padStart(2, '0');
+    if (A && A.fase === 'duel' && sisa <= 10 && !A.sepuluh) { A.sepuluh = true; $('#time').style.color = '#F2A766'; ucapA('Sepuluh detik terakhir!'); }
     if (sisa <= 0) { bunyi(880, 0.25); setTimeout(() => bunyi(880, 0.25), 300); setTimeout(() => bunyi(880, 0.5), 600); try { navigator.vibrate && navigator.vibrate([300, 120, 300]); } catch (e) { } berhenti(true); }
   } else { const d = Math.floor(det); $('#time').textContent = Math.floor(d / 60) + ':' + String(d % 60).padStart(2, '0'); }
 }
 function catatSah() {
   S.count++; $('#count').textContent = S.count; bunyi(1046, 0.08);
+  if (A && A.fase === 'duel') { kirimA('skor', { token: A.token, skor: S.count }); renderHudA(); cekPemimpin(); }
   feedback('Bagus! ' + S.count, 'ok');
   if ($('#voice').checked && 'speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(String(S.count)); u.lang = 'id-ID'; u.rate = 1.3; speechSynthesis.speak(u); }
 }
@@ -491,6 +509,8 @@ function berhenti(tampilkan) {
   S.selesai = true;
   const durasi = S.mulai ? Math.min(opt.mode === 'tes' ? 60 : 1e9, Math.round((performance.now() - S.mulai) / 1000)) : 0;
   tutupKamera();
+  if (A && A.fase === 'duel') { arenaAkhir(); return; }
+  if (A) return;
   if (tampilkan && S.mulai) tampilHasil(durasi);
 }
 function nilai(n) {
@@ -533,6 +553,208 @@ function tampilHasil(durasi) {
     location.href = './';
   });
   window.scrollTo(0, 0);
+}
+
+/* ================= Arena: duel live ================= */
+const KODE_HURUF = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const A = (() => {
+  const k = (q.get('arena') || '').toUpperCase();
+  if (!k) return null;
+  return { kode: k === 'BARU' ? null : (/^[A-Z0-9]{5}$/.test(k) ? k : null), host: k === 'BARU', valid: k === 'BARU' || /^[A-Z0-9]{5}$/.test(k),
+    peserta: {}, siap: false, siapHilang: 0, fase: 'lobby', ronde: 1, duel: [], skor: {}, selesai: {}, hasil: null, status: 'Menghubungkan…',
+    pemimpin: '', sepuluh: false, timer: null, ch: null, token: '', hostAda: 0 };
+})();
+function namaPendekA(n) { const p = String(n || '').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1][0].toUpperCase() + '.' : ''); }
+async function hitungToken(email) {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('sigap-battle:' + String(email).trim().toLowerCase())));
+  return Array.from(d.slice(0, 6)).map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+function linkUndang() { return location.origin + location.pathname.replace(/kamera\.html$/, '') + '?arena=' + A.kode; }
+function teksUndang() { return namaPendekA(sesi.profil.name) + ' menantangmu duel ' + labelItem().toLowerCase() + ' LIVE di SIGAP JadiPrajurit! Masuk ruang ' + A.kode + ' sekarang: ' + linkUndang(); }
+function daftarPeserta() {
+  return Object.values(A.peserta).sort((a, b) => (b.host ? 1 : 0) - (a.host ? 1 : 0) || String(a.t).localeCompare(String(b.t))).slice(0, 6);
+}
+function ucapA(t) { try { if (!$('#voice').checked || !('speechSynthesis' in window)) return; const u = new SpeechSynthesisUtterance(t); u.lang = 'id-ID'; u.rate = 1.15; speechSynthesis.speak(u); } catch (e) { } }
+function metaSaya() { return { token: A.token, nama: namaPendekA(sesi.profil.name), host: A.host, siap: A.siap, item: opt.item, ronde: A.ronde, t: A.masuk }; }
+function lacak() { if (A.ch && A.terhubung) A.ch.track(metaSaya()); }
+function kirimA(event, payload) { if (A.ch) A.ch.send({ type: 'broadcast', event, payload }); }
+
+function renderLobby() {
+  const el = $('#arena-lobby'); if (!el || !A) return;
+  const ps = daftarPeserta(), semuaSiap = ps.length >= 2 && ps.every((p) => p.siap);
+  let h = '<div class="stack" style="gap:6px"><a class="brandx" href="./"><img class="logo-terang" src="assets/logo-jadiprajurit.png" alt="JadiPrajurit"><img class="logo-gelap" src="assets/logo-jadiprajurit-terang.png" alt="JadiPrajurit"><span>SIGAP · Arena</span></a><h1>Duel live</h1><div class="sub">Bertanding bersamaan lewat tes kamera 1 menit. Yang dibandingkan nilai, jadi adil untuk semua.</div></div>';
+  if (!A.valid) return void (el.innerHTML = h + '<div class="note warnbox small">Kode ruang tidak valid. Minta link baru ke temanmu.</div><a class="btn ghost" href="./">Kembali ke SIGAP</a>');
+  h += '<div class="card stack" style="align-items:flex-start"><div class="sub">Kode ruang</div><div style="font:800 44px Archivo,sans-serif;letter-spacing:.12em;line-height:1">' + esc(A.kode || '…') + '</div>';
+  h += '<div class="btns" style="width:100%"><a class="btn" href="https://wa.me/?text=' + encodeURIComponent(A.kode ? teksUndang() : '') + '" target="_blank" rel="noopener">Undang lewat WhatsApp</a><button type="button" class="btn ghost" id="a-salin">Salin link</button></div>';
+  h += '<div class="tiny muted">Status: ' + esc(A.status) + '</div></div>';
+  h += '<div class="card stack"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Peserta (' + ps.length + '/6)</h2><span class="tag">' + esc(labelItem()) + '</span></div>';
+  if (!ps.length) h += '<p class="small muted" style="margin:0">Menunggu terhubung…</p>';
+  ps.forEach((p) => {
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:12px;background:var(--line2)"><span style="font-weight:700">' + esc(p.nama) + (p.token === A.token ? ' (kamu)' : '') + (p.host ? ' <span class="tag">Tuan rumah</span>' : '') + '</span><span class="small" style="font-weight:700;color:' + (p.siap ? 'var(--good)' : 'var(--warn)') + '">' + (p.siap ? 'Siap' : 'Belum siap') + '</span></div>';
+  });
+  if (A.host) {
+    h += '<div class="f">Gerakan<div class="chips">' + ['pushup', 'situp', 'pullup'].map((k) => '<button type="button" class="chip" data-aitem="' + k + '" aria-pressed="' + (k === opt.item) + '">' + esc(k === 'pullup' ? (opt.gender === 'Wanita' ? 'Chinning' : 'Pull-up') : ITEM[k].nama) + '</button>').join('') + '</div></div>';
+  }
+  h += '</div>';
+  h += '<button class="btn" id="a-kamera">' + (A.siap ? 'Kamera siap' : 'Siapkan kamera') + '</button>';
+  h += '<p class="tiny muted" style="margin:0">Tekan Siapkan kamera, taruh HP sesuai panduan, lalu ambil posisi awal. Status berubah menjadi Siap saat posisimu terbaca. ' + (A.host ? 'Kamu bisa memulai duel setelah minimal 2 peserta siap.' : 'Tuan rumah yang memulai duel.') + '</p>';
+  if (A.host && ps.length >= 2) h += '<p class="small" style="margin:0;font-weight:700;color:' + (semuaSiap ? 'var(--good)' : 'var(--muted)') + '">' + (semuaSiap ? 'Semua peserta siap.' : 'Menunggu semua peserta siap.') + '</p>';
+  h += '<a class="btn ghost" href="./">Keluar dari ruang</a>';
+  el.innerHTML = h;
+}
+function renderHudA() {
+  const el = $('#arena-hud'); if (!el || !A) return;
+  const ps = (A.fase === 'duel' ? A.duel.map((t) => A.peserta[t] || { token: t, nama: (A.namaDuel || {})[t] || '?' }) : daftarPeserta());
+  if (A.fase !== 'duel') {
+    const semuaSiap = ps.length >= 2 && ps.every((p) => p.siap);
+    el.innerHTML = '<div class="a-panel">' + ps.map((p) => '<div class="a-row"><span>' + esc(p.nama) + (p.token === A.token ? ' (kamu)' : '') + '</span><b style="color:' + (p.siap ? '#8CCB86' : '#F2B27A') + '">' + (p.siap ? 'Siap' : 'Belum') + '</b></div>').join('') + '</div>';
+    const f = $('#finish');
+    if (A.host) { f.textContent = 'Mulai duel'; f.disabled = !semuaSiap; } else { f.textContent = 'Menunggu tuan rumah'; f.disabled = true; }
+    return;
+  }
+  const skor = (t) => (t === A.token ? S.count : (A.skor[t] || 0));
+  if (ps.length === 2) {
+    const me = ps.find((p) => p.token === A.token) || ps[0], lawan = ps.find((p) => p !== me) || ps[1];
+    const nyawa = (s) => Math.max(0, 100 - s * 2.5);
+    el.innerHTML = '<div class="a-panel"><div class="a-vs"><div><div class="a-nm">' + esc(me.nama) + '</div><div class="a-hp"><i style="width:' + nyawa(skor(lawan.token)) + '%;background:#8CCB86"></i></div><div class="a-sk">' + skor(me.token) + '</div></div><div class="a-v">VS</div><div><div class="a-nm">' + esc(lawan.nama) + '</div><div class="a-hp"><i style="width:' + nyawa(skor(me.token)) + '%;background:#E05A3A"></i></div><div class="a-sk" style="color:#C3D2BD">' + skor(lawan.token) + '</div></div></div></div>';
+  } else {
+    const urut = ps.slice().sort((a, b) => skor(b.token) - skor(a.token));
+    el.innerHTML = '<div class="a-panel">' + urut.map((p, i) => '<div class="a-row"><span>' + (i + 1) + '. ' + esc(p.nama) + (p.token === A.token ? ' (kamu)' : '') + '</span><b>' + skor(p.token) + '</b></div>').join('') + '</div>';
+  }
+}
+function cekPemimpin() {
+  if (A.fase !== 'duel') return;
+  const skorOf = (t) => (t === A.token ? S.count : (A.skor[t] || 0));
+  const urut = A.duel.slice().sort((a, b) => skorOf(b) - skorOf(a));
+  const top = urut[0], kedua = urut[1];
+  if (!top || skorOf(top) === skorOf(kedua) || top === A.pemimpin) return;
+  A.pemimpin = top;
+  const now = Date.now(); if (now - (A.ucapTerakhir || 0) < 2500) return; A.ucapTerakhir = now;
+  ucapA(top === A.token ? 'Kamu memimpin!' : (((A.peserta[top] || {}).nama || 'Lawan').split(' ')[0] + ' memimpin!'));
+}
+async function arenaHubungkan() {
+  if (!A || !A.valid) { renderLobby(); return; }
+  if (!sesi || !sesi.email) { location.replace('./?arena=' + (A.kode || '')); return; }
+  A.token = (sesi.profil && sesi.profil.token) || await hitungToken(sesi.email);
+  A.masuk = new Date().toISOString();
+  if (!A.kode) { A.kode = Array.from(crypto.getRandomValues(new Uint8Array(5))).map((b) => KODE_HURUF[b % KODE_HURUF.length]).join(''); history.replaceState(null, '', '?arena=' + A.kode + '&item=' + opt.item); }
+  const C = window.CONFIG || {};
+  if (!window.supabase || !C.SUPABASE_URL || !C.SUPABASE_KEY) { A.status = 'Layanan duel live belum diatur (Supabase).'; renderLobby(); return; }
+  const sb = window.supabase.createClient(C.SUPABASE_URL.replace(/\/rest\/v1\/?$/, ''), C.SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { params: { eventsPerSecond: 20 } } });
+  A.ch = sb.channel('arena-' + A.kode, { config: { presence: { key: A.token }, broadcast: { self: false } } });
+  A.ch.on('presence', { event: 'sync' }, () => {
+    const st = A.ch.presenceState(), baru = {};
+    Object.keys(st).forEach((k) => { const m = st[k][st[k].length - 1]; if (m && m.token) baru[k] = m; });
+    A.peserta = baru;
+    const host = Object.values(baru).find((p) => p.host);
+    if (host) { A.hostAda = Date.now(); if (!A.host && host.item && host.item !== opt.item && A.fase === 'lobby') { opt.item = host.item; resetParam(); renderSetup(); } if (!A.host && host.ronde) A.ronde = host.ronde; }
+    if (!A.host && !host && A.fase === 'lobby') A.status = 'Tuan rumah belum ada di ruang.'; else if (A.terhubung) A.status = 'Terhubung';
+    const ps = daftarPeserta();
+    if (!ps.some((p) => p.token === A.token) && Object.keys(baru).length >= 6) A.status = 'Ruang penuh (maksimal 6 peserta).';
+    renderLobby(); renderHudA();
+  });
+  A.ch.on('broadcast', { event: 'mulai' }, ({ payload }) => arenaMulai(payload));
+  A.ch.on('broadcast', { event: 'skor' }, ({ payload }) => { if (A.fase === 'duel' && payload && payload.token) { A.skor[payload.token] = payload.skor; renderHudA(); cekPemimpin(); } });
+  A.ch.on('broadcast', { event: 'selesai' }, ({ payload }) => { if (payload && payload.token) { A.skor[payload.token] = payload.skor; A.selesai[payload.token] = true; renderTunggu(); cekSemuaSelesai(); } });
+  A.ch.on('broadcast', { event: 'hasil' }, ({ payload }) => { if (payload && payload.ronde === A.ronde) tampilHasilA(payload); });
+  A.ch.on('broadcast', { event: 'ulang' }, ({ payload }) => arenaUlang(payload && payload.ronde));
+  A.ch.subscribe((st) => {
+    if (st === 'SUBSCRIBED') { A.terhubung = true; A.status = 'Terhubung'; lacak(); }
+    else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { A.terhubung = false; A.status = 'Koneksi duel terputus. Periksa internet, lalu muat ulang halaman.'; }
+    else if (st === 'CLOSED') { A.terhubung = false; }
+    renderLobby();
+  });
+  renderLobby();
+}
+function arenaSiap(v) { if (!A || A.fase !== 'lobby' || A.siap === v) return; A.siap = v; lacak(); renderHudA(); renderLobby(); setStatus(v ? (A.host ? 'Siap! Tekan Mulai duel saat semua siap' : 'Siap! Menunggu tuan rumah memulai') : 'Ambil posisi awal', v ? 'ok' : 'bad'); }
+function arenaMulai(p) {
+  if (!A || A.fase === 'duel' || !S || !stream) return;
+  if (!p || !Array.isArray(p.duel) || p.duel.indexOf(A.token) < 0) return;
+  A.fase = 'duel'; A.ronde = p.ronde; A.duel = p.duel; A.namaDuel = p.nama || {}; A.skor = {}; A.selesai = {}; A.hasil = null; A.pemimpin = ''; A.sepuluh = false;
+  $('#finish').textContent = 'Menyerah'; $('#finish').disabled = false;
+  renderHudA(); ucapA('Siap'); hitungMundur();
+}
+function hostMulai() {
+  const ps = daftarPeserta().filter((p) => p.siap);
+  if (ps.length < 2) return;
+  const payload = { ronde: A.ronde, duel: ps.map((p) => p.token), nama: Object.fromEntries(ps.map((p) => [p.token, p.nama])), item: opt.item };
+  kirimA('mulai', payload); arenaMulai(payload);
+}
+function renderTunggu() {
+  if (!A || A.fase !== 'tunggu') return;
+  const r = $('#result');
+  r.innerHTML = '<div class="stack" style="gap:6px"><div class="sub">Arena SIGAP · ruang ' + esc(A.kode) + '</div><h1>Menunggu hasil…</h1></div><div class="card stack">' + A.duel.map((t) => '<div style="display:flex;justify-content:space-between"><span>' + esc((A.namaDuel || {})[t] || '?') + '</span><b>' + (A.selesai[t] ? (A.skor[t] != null ? A.skor[t] : '') + ' · selesai' : 'masih bertanding…') + '</b></div>').join('') + '</div>';
+  r.style.display = 'flex'; $('#setup').style.display = 'none'; $('#arena-lobby').style.display = 'none';
+}
+function arenaAkhir() {
+  A.fase = 'tunggu'; A.skor[A.token] = S.count; A.selesai[A.token] = true;
+  kirimA('selesai', { token: A.token, skor: S.count, ronde: A.ronde });
+  renderTunggu();
+  clearTimeout(A.timer);
+  A.timer = setTimeout(() => { if (A.fase === 'tunggu') { if (A.host) simpanHasil(); else tampilHasilA(hasilLokal(), true); } }, A.host ? 12000 : 25000);
+  cekSemuaSelesai();
+}
+function cekSemuaSelesai() { if (A && A.host && A.fase === 'tunggu' && A.duel.every((t) => A.selesai[t])) simpanHasil(); }
+function hasilLokal() {
+  const hs = A.duel.map((t) => ({ token: t, nama: (A.namaDuel || {})[t] || '?', skor: A.skor[t] || 0 }));
+  hs.forEach((x) => { x.nilai = x.skor; });
+  hs.sort((a, b) => b.skor - a.skor);
+  hs.forEach((x, i) => { x.rank = i > 0 && x.skor === hs[i - 1].skor ? hs[i - 1].rank : i + 1; });
+  return { ronde: A.ronde, hasil: hs, tersimpan: false };
+}
+async function simpanHasil() {
+  if (A.menyimpan || A.fase !== 'tunggu') return; A.menyimpan = true; clearTimeout(A.timer);
+  const url = (window.CONFIG || {}).APPS_SCRIPT_URL;
+  let payload;
+  try {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'arenaSimpan', email: sesi.email, kode: A.kode, ronde: A.ronde, item: opt.item, peserta: A.duel.map((t) => ({ token: t, skor: A.skor[t] || 0 })) }) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.kode || 'gagal');
+    payload = { ronde: A.ronde, hasil: j.hasil, tersimpan: true };
+  } catch (e) { payload = hasilLokal(); }
+  A.menyimpan = false;
+  kirimA('hasil', payload); tampilHasilA(payload);
+}
+function tampilHasilA(p, lokal) {
+  if (!A || A.hasil) return;
+  A.hasil = p; A.fase = 'hasil'; clearTimeout(A.timer);
+  const saya = p.hasil.find((x) => x.token === A.token), juara = p.hasil.filter((x) => x.rank === 1).length;
+  const judul = !saya ? 'Duel selesai' : saya.rank === 1 ? (juara > 1 ? 'SERI!' : 'MENANG!') : 'Kalah kali ini';
+  if (saya) ucapA(saya.rank === 1 ? (juara > 1 ? 'Hasilnya seri!' : 'Kamu menang!') : 'Duel selesai. Ayo tanding ulang!');
+  let h = '<div class="stack" style="gap:6px"><div class="sub">Arena SIGAP · ' + esc(labelItem()) + ' 1 menit</div><h1 style="font-size:40px;color:' + (saya && saya.rank === 1 ? 'var(--warn)' : 'var(--ink)') + '">' + judul + '</h1></div>';
+  h += '<div class="card stack">' + p.hasil.map((x) => '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:12px;' + (x.rank === 1 ? 'border:2px solid var(--warn)' : 'background:var(--line2)') + '"><span style="font-weight:700">' + x.rank + '. ' + esc(x.nama) + (x.token === A.token ? ' (kamu)' : '') + '</span><span><b style="font:800 26px Archivo,sans-serif">' + x.skor + '</b>' + (p.tersimpan ? ' <span class="small muted">nilai ' + x.nilai + '</span>' : '') + '</span></div>').join('') + '</div>';
+  if (!p.tersimpan) h += '<div class="note small">Hasil belum tersimpan ke server (koneksi bermasalah), jadi peringkat sementara diurutkan dari jumlah gerakan.</div>';
+  h += A.host ? '<button class="btn" id="a-ulang">Tanding ulang</button>' : '<div class="note small">Menunggu tuan rumah untuk tanding ulang…</div>';
+  if (p.tersimpan) h += '<button class="btn ghost" id="a-story">Bagikan ke story</button>';
+  h += '<a class="btn ghost" href="https://wa.me/?text=' + encodeURIComponent(teksUndang()) + '" target="_blank" rel="noopener">Undang teman lain</a><a class="btn ghost" href="./">Kembali ke SIGAP</a>';
+  const r = $('#result'); r.innerHTML = h; r.style.display = 'flex'; $('#setup').style.display = 'none'; $('#arena-lobby').style.display = 'none';
+  window.scrollTo(0, 0);
+}
+function arenaUlang(ronde) {
+  if (!A) return;
+  A.ronde = ronde || A.ronde + 1; A.fase = 'lobby'; A.siap = false; A.hasil = null; A.skor = {}; A.selesai = {}; A.duel = []; A.menyimpan = false;
+  lacak();
+  $('#result').style.display = 'none'; $('#arena-lobby').style.display = 'flex';
+  renderLobby();
+}
+document.addEventListener('click', (e) => {
+  if (!A) return;
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'a-salin') { const t = linkUndang(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'Link disalin'; }, () => prompt('Salin link ini:', t)); }
+  if (b.id === 'a-kamera') { if (!A.terhubung) { alert('Belum terhubung ke ruang duel. Tunggu sebentar atau muat ulang halaman.'); return; } mulai(); }
+  if (b.dataset.aitem && A.host && A.fase === 'lobby') { opt.item = b.dataset.aitem; resetParam(); renderSetup(); lacak(); renderLobby(); }
+  if (b.id === 'a-ulang' && A.host) { const r = A.ronde + 1; kirimA('ulang', { ronde: r }); arenaUlang(r); }
+  if (b.id === 'a-story' && A.hasil) {
+    try { localStorage.setItem('pelatih-garjas-arena-share', JSON.stringify({ item: opt.item, kode: A.kode, token: A.token, hasil: A.hasil.hasil, waktu: Date.now() })); } catch (x) { }
+    location.href = './?bagikan=arena';
+  }
+});
+if (window.__SIGAP_UJI) window.__SIGAP_UJI.arena = { siap: (v) => { A.kunciUji = true; arenaSiap(v); }, sah: () => catatSah(), info: () => ({ fase: A && A.fase, kode: A && A.kode, peserta: A && Object.keys(A.peserta).length, hasil: A && A.hasil, count: S && S.count }) };
+if (A) {
+  $('#setup').style.display = 'none';
+  const lob = document.createElement('div'); lob.id = 'arena-lobby'; lob.className = 'stack'; $('#app').insertBefore(lob, $('#setup'));
+  const hud = document.createElement('div'); hud.id = 'arena-hud'; $('#stage').appendChild(hud);
+  arenaHubungkan();
 }
 </script>
 </body>

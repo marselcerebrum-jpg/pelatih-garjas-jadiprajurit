@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-16** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-17** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -95,6 +95,20 @@ Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nam
 Wajib: bukti syarat, nama lengkap, email akun JadiPrajurit, jenis kelamin, usia, matra, dan persetujuan data. Opsional: tinggi, berat, domisili, tanggal tes, dan target nilai (bawaan 100). Nomor WhatsApp dan jalur **tidak lagi diminta**; data lama peserta yang sudah terisi tetap tersimpan.
 
 Setelah daftar, peserta melihat halaman sambutan dengan dua ajakan: **Gabung grup WhatsApp** (link dari `link_grup_wa`) dan **Chat admin untuk konsultasi** (nomor dari `wa_admin`, pesan sudah terisi nama, email, matra, dan prediksi nilai). Kedua ajakan juga tampil di Beranda dan Profil. Karena nomor peserta tidak lagi diminta, tab **Simpan Kontak** hanya terisi dari peserta lama; nomor peserta baru didapat admin saat mereka mengirim chat konsultasi.
+
+## Duel live (Arena)
+
+Peserta bisa bertanding **bersamaan** dengan teman lewat tes kamera 1 menit (push-up, sit-up, atau pull-up/chinning), 2 sampai 6 orang per ruang.
+
+1. Tuan rumah membuka menu **Battle → Duel live → Buat ruang duel**, lalu mendapat **kode ruang 5 huruf** dan tombol **Undang lewat WhatsApp**.
+2. Teman membuka link (`?arena=KODE`) atau memasukkan kode di menu Battle. Teman tidak harus ada di Peringkat.
+3. Semua peserta menyiapkan kamera; status berubah menjadi **Siap** saat posisi awal terbaca. Tuan rumah menekan **Mulai duel**, lalu semua HP menghitung mundur bersamaan.
+4. Selama 1 menit, skor semua peserta tampil langsung (bar nyawa untuk duel 1 lawan 1, papan peringkat untuk lebih dari 2 orang), lengkap dengan suara komentator.
+5. Hasil ditentukan dari **nilai** (adil untuk pria/wanita dan antarmatra), disimpan ke tab **Arena**, dan bisa dibagikan sebagai story. Tuan rumah bisa langsung **Tanding ulang**.
+
+**Jalur cepat teman undangan:** teman yang belum punya akun cukup mengisi data diri lalu langsung duel. Bukti syarat pendaftaran diminta setelah duel pertama (layar "Satu langkah lagi"); kolom Bukti Syarat berisi `Belum (undangan duel)` sampai dilengkapi.
+
+**Teknis:** koneksi langsung memakai **Supabase Realtime** (kanal `arena-KODE`, tanpa tabel database). Alamat dan publishable key ada di `js/config.js` (`SUPABASE_URL`, `SUPABASE_KEY`). Pustaka `supabase-js` disimpan di `vendor/supabase/`. Bila lobi tertahan di "Menghubungkan…", periksa **Realtime → Settings** di dasbor Supabase dan pastikan akses kanal publik diizinkan. Proyek Supabase gratis dijeda bila 7 hari tidak dipakai; aktifkan lagi dengan **Restore project**.
 
 ## Battle
 
