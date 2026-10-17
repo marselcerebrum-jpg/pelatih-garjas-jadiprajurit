@@ -12,7 +12,7 @@
  * Version: New version → Deploy. JANGAN pilih "New deployment", karena URL-nya berubah.
  */
 
-var VERSI_BACKEND = '2026.10.11-9';
+var VERSI_BACKEND = '2026.10.11-10';
 var TZ = 'Asia/Jakarta';
 
 var TAB = {
@@ -22,7 +22,8 @@ var TAB = {
   PENGATURAN: 'Pengaturan',
   KONTAK: 'Simpan Kontak',
   SYARAT: 'Syarat',
-  BATTLE: 'Battle'
+  BATTLE: 'Battle',
+  ARENA: 'Arena'
 };
 var NAMA_FOLDER_BUKTI = 'Bukti Syarat - SIGAP JadiPrajurit';
 var MAX_BUKTI_BYTES = 5 * 1024 * 1024;
@@ -39,6 +40,7 @@ var KOLOM_STANDAR = ['Jenis Kelamin', 'Item', 'Hasil', 'Nilai', 'Matra'];
 var MATRA_STANDAR = ['Semua', 'AD', 'AL', 'AU'];
 var KOLOM_PENGATURAN = ['Kunci', 'Nilai', 'Keterangan'];
 var KOLOM_BATTLE = ['ID', 'Dibuat', 'Item', 'Penantang Email', 'Penantang Nama', 'Ditantang Email', 'Ditantang Nama', 'Skor Penantang', 'Nilai Penantang', 'Skor Ditantang', 'Nilai Ditantang', 'Status', 'Batas Waktu', 'Pemenang', 'Selesai'];
+var KOLOM_ARENA = ['ID', 'Waktu', 'Kode Ruang', 'Item', 'Tuan Rumah', 'Email Peserta', 'Hasil (JSON)', 'Pemenang'];
 var KOLOM_SYARAT = ['No', 'Syarat', 'Link (opsional)', 'Aktif (Ya/Tidak)'];
 var KOLOM_KONTAK = ['Waktu', 'ID Peserta', 'Nama Kontak', 'No. WhatsApp', 'Email JadiPrajurit', 'Status'];
 
@@ -148,7 +150,8 @@ function setup() {
   folderBukti_();
 
   siapkanTab_(ss, TAB.BATTLE, KOLOM_BATTLE, 6);
-  var kontak = siapkanTab_(ss, TAB.KONTAK, KOLOM_KONTAK, 7);
+  siapkanTab_(ss, TAB.ARENA, KOLOM_ARENA, 7);
+  var kontak = siapkanTab_(ss, TAB.KONTAK, KOLOM_KONTAK, 8);
   kontak.getRange('B:F').setNumberFormat('@');
   kontak.setColumnWidth(6, 320);
 
@@ -197,7 +200,9 @@ function doPost(e) {
   try { body = JSON.parse(e.postData.contents); } catch (x) { return json_({ ok: false, kode: 'data_tidak_valid' }); }
   try {
     switch (body.action) {
-      case 'daftar': return json_(daftar_(body.profil || {}, body.bukti));
+      case 'daftar': return json_(daftar_(body.profil || {}, body.bukti, body.cepat === true));
+      case 'lengkapiSyarat': return json_(lengkapiSyarat_(body.email, body.bukti));
+      case 'arenaSimpan': return json_(arenaSimpan_(body.email, body.kode, body.ronde, body.item, body.peserta));
       case 'masuk': return json_(masuk_(body.email));
       case 'simpanProfil': return json_(simpanProfil_(body.email, body.profil || {}));
       case 'tambahCatatan': return json_(tambahCatatan_(body.email, body.catatan || {}, body.ringkasan || {}));
@@ -273,14 +278,16 @@ function ambilConfig_() {
   };
 }
 
-function daftar_(p, bukti) {
+function daftar_(p, bukti, cepat) {
   var v = validasiProfil_(p, true);
   var syarat = bacaSyarat_(SpreadsheetApp.getActiveSpreadsheet());
-  var blob = validasiBukti_(bukti, syarat.length);
+  // Jalur cepat: teman yang diundang duel boleh daftar dulu, bukti syarat menyusul setelah duel pertama.
+  var tunda = cepat === true && syarat.length > 0 && (!Array.isArray(bukti) || !bukti.length);
+  var blob = tunda ? [] : validasiBukti_(bukti, syarat.length);
   var sh0 = tab_(TAB.PESERTA);
   if (cariBaris_(sh0, 4, v.email) > 0) throw { kode: 'email_terdaftar' };
   var id = 'P' + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase();
-  var linkBukti = simpanBukti_(id, v.name, blob);
+  var linkBukti = tunda ? 'Belum (undangan duel)' : simpanBukti_(id, v.name, blob);
   return denganKunci_(function () {
     var sh = tab_(TAB.PESERTA);
     if (cariBaris_(sh, 4, v.email) > 0) throw { kode: 'email_terdaftar' };
@@ -663,7 +670,8 @@ function battleDaftar_(email) {
   var rekor = { menang: 0, kalah: 0, seri: 0 };
   var list = milik.map(function (r) { var x = battlePub_(r, me); if (x.hasil) rekor[x.hasil]++; return x; })
     .sort(function (a, c) { return a.dibuat < c.dibuat ? 1 : -1; }).slice(0, 40);
-  return { ok: true, token: tokenPeserta_(me), rekor: rekor, battle: list };
+  var ra = rekorArena_(me);
+  return { ok: true, token: tokenPeserta_(me), rekor: rekor, rekorLive: ra, battle: list };
 }
 
 function battleLihat_(id) {
@@ -674,6 +682,82 @@ function battleLihat_(id) {
   var x = battlePub_(r, '');
   delete x.peran; delete x.hasil;
   return { ok: true, battle: x };
+}
+
+/* ------------------------------------------------------------------ */
+/* Arena (duel live) dan jalur cepat syarat                             */
+/* ------------------------------------------------------------------ */
+
+function pesertaDariToken_(token) {
+  token = String(token || '').toUpperCase();
+  var sh = tab_(TAB.PESERTA), n = sh.getLastRow() - 1;
+  if (n < 1) return null;
+  var rows = sh.getRange(2, 1, n, 11).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (tokenPeserta_(rows[i][3]) === token) {
+      var r = rows[i];
+      return { em: normEmail_(r[3]), nama: String(r[2]).replace(/^'/, ''), gender: String(r[5]) === 'Wanita' ? 'Wanita' : 'Pria', matra: String(r[10]) };
+    }
+  }
+  return null;
+}
+
+function arenaSimpan_(email, kode, ronde, item, peserta) {
+  var host = pesertaDariEmail_(email);
+  kode = String(kode || '').toUpperCase();
+  if (!/^[A-Z0-9]{5}$/.test(kode)) throw { kode: 'data_tidak_valid', pesan: 'kode' };
+  if (ITEM_BATTLE.indexOf(item) < 0) throw { kode: 'data_tidak_valid', pesan: 'item' };
+  if (!Array.isArray(peserta) || peserta.length < 2 || peserta.length > 6) throw { kode: 'data_tidak_valid', pesan: 'peserta' };
+  var id = kode + '-' + Math.max(1, Math.min(999, Math.round(Number(ronde) || 1)));
+  var sh = tab_(TAB.ARENA);
+  if (sh.getLastRow() > 1) {
+    var ada = sh.getRange(2, 1, sh.getLastRow() - 1, KOLOM_ARENA.length).getValues().filter(function (r) { return String(r[0]) === id; })[0];
+    if (ada) return { ok: true, id: id, hasil: JSON.parse(ada[6]) };
+  }
+  var cfg = ambilConfig_(), dilihat = {};
+  var hasil = peserta.map(function (x) {
+    var p = pesertaDariToken_(x.token);
+    if (!p || dilihat[p.em]) throw { kode: 'data_tidak_valid', pesan: 'peserta' };
+    dilihat[p.em] = 1;
+    var skor = validasiSkorBattle_(item, x.skor);
+    return { token: String(x.token).toUpperCase(), em: p.em, nama: namaTampil_(p.nama), skor: skor, nilai: nilaiItem_(cfg, p.gender, p.matra, item, skor) };
+  });
+  if (!dilihat[host.em]) throw { kode: 'data_tidak_valid', pesan: 'tuan_rumah' };
+  hasil.sort(function (a, b) { return b.nilai - a.nilai || b.skor - a.skor; });
+  hasil.forEach(function (x, i) {
+    x.rank = i > 0 && x.nilai === hasil[i - 1].nilai && x.skor === hasil[i - 1].skor ? hasil[i - 1].rank : i + 1;
+  });
+  var seri = hasil.filter(function (x) { return x.rank === 1; }).length > 1;
+  var pub = hasil.map(function (x) { return { token: x.token, nama: x.nama, skor: x.skor, nilai: x.nilai, rank: x.rank }; });
+  denganKunci_(function () {
+    sh.appendRow([id, sekarang_(), kode, item, host.em, hasil.map(function (x) { return x.em; }).join(','), JSON.stringify(pub), seri ? 'seri' : hasil[0].nama]);
+  });
+  return { ok: true, id: id, hasil: pub };
+}
+
+function rekorArena_(me) {
+  var sh = tab_(TAB.ARENA), r = { menang: 0, kalah: 0, seri: 0 };
+  if (sh.getLastRow() < 2) return r;
+  sh.getRange(2, 1, sh.getLastRow() - 1, KOLOM_ARENA.length).getValues().forEach(function (row) {
+    if (String(row[5]).split(',').indexOf(me) < 0) return;
+    var hasil = []; try { hasil = JSON.parse(row[6]); } catch (e) { return; }
+    var tok = tokenPeserta_(me), saya = hasil.filter(function (x) { return x.token === tok; })[0];
+    if (!saya) return;
+    var juara = hasil.filter(function (x) { return x.rank === 1; }).length;
+    if (saya.rank === 1 && juara > 1) r.seri++; else if (saya.rank === 1) r.menang++; else r.kalah++;
+  });
+  return r;
+}
+
+function lengkapiSyarat_(email, bukti) {
+  var em = normEmail_(email), sh = tab_(TAB.PESERTA), baris = cariBaris_(sh, 4, em);
+  if (baris < 0) throw { kode: 'tidak_ditemukan' };
+  var syarat = bacaSyarat_(SpreadsheetApp.getActiveSpreadsheet());
+  var blob = validasiBukti_(bukti, syarat.length);
+  var r = sh.getRange(baris, 1, 1, 3).getValues()[0];
+  var link = simpanBukti_(String(r[0]), String(r[2]), blob);
+  denganKunci_(function () { sh.getRange(baris, 25).setValue(link || 'Tidak ada syarat aktif'); });
+  return { ok: true, profil: profilPublik_(sh, baris) };
 }
 
 /* ------------------------------------------------------------------ */
@@ -768,7 +852,9 @@ function profilPublik_(sh, baris) {
     disimpanAdmin: String(r[19]) === 'Ya',
     kontakAdmin: /^Ya/.test(String(r[20])),
     tampilLeaderboard: String(r[21]) !== 'Tidak',
-    kodeBagikan: String(r[22] || '')
+    kodeBagikan: String(r[22] || ''),
+    syaratBelum: /^Belum/.test(String(r[24] || '')),
+    token: tokenPeserta_(r[3])
   };
 }
 

@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  (window.VERSI_FILE = window.VERSI_FILE || {})['nilai.js'] = '2026.10.11-16';
+  (window.VERSI_FILE = window.VERSI_FILE || {})['nilai.js'] = '2026.10.11-17';
 
   var ITEMS = [
     { key: 'lari', label: 'Lari 12 menit', unit: 'm', min: 0, max: 6000, step: '10', ph: '2400' },
