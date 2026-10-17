@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-17';
+  var VERSI = '2026.10.11-18';
   var BACKEND_DIHARAPKAN = '2026.10.11-10';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
@@ -30,7 +30,7 @@
   /* ---------------- State ---------------- */
   var S = { email: null, profil: null, catatan: [] };
   var CFG = null;
-  var tab = 'beranda', authView = 'daftar', authMsg = '', busy = false;
+  var tab = 'beranda', authView = 'awal', authMsg = '', busy = false;
   var progressPick = 'garjas', checkin = null;
   var draft = { date: todayStr(), items: {}, sim: false, note: '' };
   var timer = { mode: null, running: false, start: 0, elapsed: 0, done: false, iv: null };
@@ -297,6 +297,19 @@
       img.src = url;
     });
   }
+  function syaratListHTML() {
+    var sy = daftarSyarat() || [], n = bukti.filter(Boolean).length, lengkap = buktiLengkap();
+    var h = '<ol class="syarat-list">';
+    sy.forEach(function (x, i) {
+      var b = bukti[i];
+      h += '<li><div style="font-weight:600">' + esc(x.teks) + '</div>' + (x.link ? '<a class="inline small" href="' + esc(x.link) + '" target="_blank" rel="noopener">Buka tautan</a>' : '');
+      h += '<label class="drop' + (b ? ' done' : '') + '"><input type="file" accept="image/*" data-bukti="' + i + '"><span class="thumb">' + (b ? '<img src="' + b.preview + '" alt="Bukti syarat ' + (i + 1) + '">' : '+') + '</span><span>' + (b ? 'Bukti terunggah. Ketuk untuk mengganti.' : 'Unggah screenshot bukti') + '</span></label></li>';
+    });
+    h += '</ol><div id="syarat-err" class="small warn" role="alert">' + esc(syaratErr) + '</div>';
+    h += '<div class="small" style="font-weight:700;color:' + (lengkap ? 'var(--good)' : 'var(--muted)') + '">Bukti terunggah: ' + n + ' dari ' + sy.length + '</div>';
+    return h;
+  }
+  function segarkanSyarat() { if (modalSyarat) renderModal(); else render(); }
   function renderModal() {
     var el = $('#modal'); if (!el) return;
     var sy = daftarSyarat();
@@ -322,9 +335,9 @@
     var i = +t.dataset.bukti; syaratErr = '';
     kompres(t.files[0]).then(function (b) {
       var kembar = bukti.some(function (x, j) { return x && j !== i && x.data === b.data; });
-      if (kembar) { syaratErr = 'Screenshot ini sama dengan bukti syarat lain. Unggah bukti yang sesuai untuk setiap syarat.'; renderModal(); return; }
-      bukti[i] = b; renderModal();
-    }, function (err) { syaratErr = err.message; renderModal(); });
+      if (kembar) { syaratErr = 'Screenshot ini sama dengan bukti syarat lain. Unggah bukti yang sesuai untuk setiap syarat.'; segarkanSyarat(); return; }
+      bukti[i] = b; segarkanSyarat();
+    }, function (err) { syaratErr = err.message; segarkanSyarat(); });
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modalSyarat) tutupSyarat(); });
   function statusSyarat() {
@@ -377,12 +390,33 @@
     return { data: o, err: err };
   }
   function brand() { return '<div class="brand"><img class="logo-terang" src="assets/logo-jadiprajurit.png" alt="JadiPrajurit" height="34"><img class="logo-gelap" src="assets/logo-jadiprajurit-terang.png" alt="JadiPrajurit" height="34"><span>SIGAP</span></div>'; }
+  function jalurCepat() { return !!lsGet(LS_ARENA_LINK) && !buktiLengkap(); }
+  function perluBuktiDaftar() { return !jalurCepat() && !!(daftarSyarat() && daftarSyarat().length); }
+  function langkah(n, total, label) { return '<div class="langkah"><span>Langkah ' + n + ' dari ' + total + '</span><b>' + esc(label) + '</b><div class="langkah-bar"><i style="width:' + Math.round(n / total * 100) + '%"></i></div></div>'; }
+  function viewAwal() {
+    var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Selamat datang di SIGAP</h1><div class="sub">Sigap fisik, siap tes. Catat latihan, lihat prediksi nilai jasmanimu, dan duel bareng teman.</div></div></div>';
+    if (authMsg) h += '<div class="note goodbox small">' + esc(authMsg) + '</div>';
+    h += '<div class="card stack"><button class="btn" id="go-daftar">Buat akun baru</button><button class="btn ghost" id="go-login">Masuk</button>';
+    h += '<p class="tiny muted" style="margin:0;text-align:center">Sudah pernah daftar? Pilih Masuk dan cukup isi email.</p></div>';
+    return h;
+  }
   function viewDaftar() {
-    var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Daftar untuk mulai</h1><div class="sub">Isi data diri sekali saja. Kolom bertanda * wajib diisi.</div></div></div>';
-    h += '<div class="card stack">' + statusSyarat() + profileForm(draftDaftar, true);
+    var total = perluBuktiDaftar() ? 2 : 1;
+    var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Buat akun</h1>' + langkah(1, total, 'Isi data diri') + '</div></div>';
+    if (jalurCepat()) h += '<div class="note goodbox small">Kamu diajak duel live! Isi data singkat lalu langsung duel. Bukti syarat pendaftaran diminta setelah duel pertama.</div>';
+    h += '<div class="card stack"><p class="tiny muted" style="margin:0">Kolom bertanda * wajib diisi.</p>' + profileForm(draftDaftar, true);
     h += '<div id="auth-msg" class="small warn" role="alert">' + esc(authMsg) + '</div>';
-    h += '<button class="btn" id="do-register"' + (busy ? ' disabled' : '') + '>' + (busy ? '<span class="spin" aria-hidden="true"></span> Mendaftarkan…' : 'Daftar &amp; mulai') + '</button></div>';
-    h += '<p class="small muted" style="text-align:center;margin:0">Sudah pernah daftar? <button type="button" class="linkbtn" style="color:var(--good)" id="go-login">Masuk dengan email</button></p>';
+    h += '<button class="btn" id="do-register"' + (busy ? ' disabled' : '') + '>' + (busy ? '<span class="spin" aria-hidden="true"></span> Mendaftarkan…' : total === 2 ? 'Lanjut ke bukti syarat' : 'Daftar &amp; mulai') + '</button></div>';
+    h += '<p class="small muted" style="text-align:center;margin:0"><button type="button" class="linkbtn" id="go-awal">Kembali</button></p>';
+    return h;
+  }
+  function viewSyaratDaftar() {
+    var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Buat akun</h1>' + langkah(2, 2, 'Lengkapi bukti syarat') + '</div></div>';
+    if (!daftarSyarat()) return h + '<div class="card" style="text-align:center"><span class="spin" aria-hidden="true"></span> Memuat syarat pendaftaran…</div>';
+    h += '<div class="card stack"><p class="small muted" style="margin:0">Penuhi syarat berikut, lalu unggah satu screenshot bukti untuk setiap syarat.</p>' + syaratListHTML();
+    h += '<div id="auth-msg" class="small warn" role="alert">' + esc(authMsg) + '</div>';
+    h += '<button class="btn" id="do-daftar-final"' + (busy ? ' disabled' : '') + '>' + (busy ? '<span class="spin" aria-hidden="true"></span> Mendaftarkan…' : 'Daftar &amp; mulai') + '</button></div>';
+    h += '<p class="small muted" style="text-align:center;margin:0"><button type="button" class="linkbtn" id="go-daftar">Kembali ke data diri</button></p>';
     return h;
   }
   var draftDaftar = {};
@@ -391,22 +425,30 @@
     h += '<div class="card stack"><label class="f">Email terdaftar<input class="in" type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="nama@email.com" value="' + esc(draftLogin) + '"></label>';
     h += '<div id="auth-msg" class="small warn" role="alert">' + esc(authMsg) + '</div>';
     h += '<button class="btn" id="do-login"' + (busy ? ' disabled' : '') + '>' + (busy ? '<span class="spin" aria-hidden="true"></span> Memeriksa…' : 'Masuk') + '</button></div>';
-    h += '<p class="small muted" style="text-align:center;margin:0">Belum punya akun? <button type="button" class="linkbtn" style="color:var(--good)" id="go-daftar">Daftar sekarang</button></p>';
+    h += '<p class="small muted" style="text-align:center;margin:0">Belum punya akun? <button type="button" class="linkbtn" style="color:var(--good)" id="go-daftar">Buat akun baru</button></p>';
     return h;
   }
   var draftLogin = '';
   function setAuthMsg(t) { authMsg = t; var m = $('#auth-msg'); if (m) m.textContent = t; }
+  var dataSiap = null;
   function doRegister() {
     var r = readProfileForm(true);
     draftDaftar = r.data;
     if (r.err.length) { setAuthMsg('Lengkapi: ' + r.err.join(', ') + '.'); return; }
-    var cepat = !!lsGet(LS_ARENA_LINK) && !buktiLengkap();
+    var cepat = jalurCepat();
     if (!cepat && !daftarSyarat()) { setAuthMsg('Syarat pendaftaran belum termuat. Periksa koneksi internet lalu muat ulang halaman.'); return; }
-    if (!cepat && !buktiLengkap()) { setAuthMsg('Unggah dulu bukti untuk setiap syarat pendaftaran.'); bukaSyarat(); return; }
     var saran = saranEmail(r.data.email);
     if (saran && confirm('Apakah maksudmu ' + saran + '?\n\nTekan OK untuk memakai ' + saran + ', atau Batal untuk tetap memakai ' + r.data.email + '.')) { r.data.email = saran; var pe = $('#p-email'); if (pe) pe.value = saran; draftDaftar.email = saran; }
     if (!confirm('Periksa data utamamu sebelum daftar:\n\nEmail (untuk masuk): ' + r.data.email + '\nJenis kelamin: ' + r.data.gender + '\nUsia: ' + r.data.age + ' tahun\nMatra: TNI ' + r.data.matra + '\n\nJenis kelamin dan usia menentukan tabel nilai. Sudah benar?')) { setAuthMsg('Silakan periksa lagi datamu, lalu tekan Daftar.'); return; }
     if (r.data.testDate && r.data.testDate < todayStr()) { setAuthMsg('Tanggal tes jasmani sudah lewat. Kosongkan atau isi tanggal tes berikutnya.'); return; }
+    dataSiap = r;
+    if (!cepat && daftarSyarat().length) { authView = 'syarat'; authMsg = ''; render(); window.scrollTo(0, 0); return; }
+    kirimDaftar();
+  }
+  function kirimDaftar() {
+    var r = dataSiap; if (!r) { authView = 'daftar'; render(); return; }
+    var cepat = jalurCepat();
+    if (!cepat && !buktiLengkap()) { setAuthMsg('Unggah dulu bukti untuk setiap syarat pendaftaran.'); return; }
     busy = true; authMsg = ''; render();
     var ref = lsGet(LS_REF);
     if (ref) r.data.ref = ref;
@@ -437,7 +479,7 @@
       render();
     });
   }
-  function logout() { S = { email: null, profil: null, catatan: [] }; simpanSesi(); authView = 'login'; authMsg = ''; draftLogin = ''; render(); toast('Kamu sudah keluar.'); }
+  function logout() { S = { email: null, profil: null, catatan: [] }; simpanSesi(); authView = 'awal'; authMsg = ''; draftLogin = ''; render(); toast('Kamu sudah keluar.'); }
 
   /* ---------------- Beranda ---------------- */
   function viewBeranda() {
@@ -486,11 +528,11 @@
   function perluLengkapiSyarat() { return !!(S.email && S.profil && S.profil.syaratBelum && daftarSyarat() && daftarSyarat().length); }
   function viewLengkapiSyarat() {
     var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Satu langkah lagi</h1><div class="sub">Seru kan duelnya? Untuk memakai semua fitur SIGAP, lengkapi dulu syarat pendaftaran berikut.</div></div></div>';
-    h += '<div class="card stack">' + statusSyarat() + '<div id="auth-msg" class="small warn" role="alert">' + esc(authMsg) + '</div><button class="btn" id="kirim-syarat"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Mengirim…' : 'Kirim bukti syarat') + '</button></div>';
+    h += '<div class="card stack">' + syaratListHTML() + '<div id="auth-msg" class="small warn" role="alert">' + esc(authMsg) + '</div><button class="btn" id="kirim-syarat"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Mengirim…' : 'Kirim bukti syarat') + '</button></div>';
     return h;
   }
   function kirimSyarat() {
-    if (!buktiLengkap()) { authMsg = 'Unggah dulu bukti untuk setiap syarat.'; bukaSyarat(); render(); return; }
+    if (!buktiLengkap()) { authMsg = 'Unggah dulu bukti untuk setiap syarat.'; render(); return; }
     busy = true; authMsg = ''; render();
     var kb = (daftarSyarat() || []).map(function (_, i) { return { mime: bukti[i].mime, data: bukti[i].data }; });
     api('lengkapiSyarat', { email: S.email, bukti: kb }).then(function (j) { busy = false; bukti = []; S.profil = j.profil; simpanSesi(); sambut = true; render(); toast('Terima kasih! Semua fitur SIGAP sudah terbuka.'); },
@@ -1339,7 +1381,7 @@
     if (tab === 'catat') readDraftFromForm();
     var nav = document.querySelector('nav.tabs'), v, gate = !S.email;
     if (landing.aktif) { gate = true; v = viewLanding(); }
-    else if (gate) v = authView === 'login' ? viewLogin() : viewDaftar();
+    else if (gate) v = authView === 'login' ? viewLogin() : authView === 'daftar' ? viewDaftar() : authView === 'syarat' ? viewSyaratDaftar() : viewAwal();
     else if (perluLengkapiSyarat()) { gate = true; v = viewLengkapiSyarat(); }
     else if (perluSimpanAdmin()) { gate = true; v = viewSimpanAdmin(); }
     else v = tab === 'catat' ? viewCatat() : tab === 'progres' ? viewProgres() : tab === 'peringkat' ? viewPeringkat() : tab === 'battle' ? viewBattle() : tab === 'bagikan' ? viewBagikan() : tab === 'program' ? viewProgram() : tab === 'profil' ? viewProfil() : viewBeranda();
@@ -1347,7 +1389,6 @@
     nav.style.display = gate ? 'none' : '';
     if (!gate) renderNav();
     if (!gate && tab === 'beranda' && S.catatan.length && !LB.data && !LB.loading && !LB.err) muatLB(false).catch(function () { });
-    if (!landing.aktif && !S.email && authView === 'daftar' && !syaratDibuka && !lsGet(LS_ARENA_LINK) && daftarSyarat() && daftarSyarat().length) bukaSyarat();
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest('button,a'); if (!b) return;
@@ -1380,6 +1421,8 @@
       case 'do-login': if (!busy) doLogin(); break;
       case 'go-login': authView = 'login'; authMsg = ''; render(); break;
       case 'go-daftar': authView = 'daftar'; authMsg = ''; render(); break;
+      case 'go-awal': authView = 'awal'; authMsg = ''; render(); break;
+      case 'do-daftar-final': if (!busy) kirimDaftar(); break;
       case 'save-log': if (!busy) saveLog(); break;
       case 'clear-log': draft = { date: todayStr(), items: {}, sim: false, note: '' }; tab = 'catat'; var d = $('#f-date'); if (d) d.value = ''; ITEMS.forEach(function (it) { var el = $('#f-' + it.key); if (el) el.value = ''; }); render(); break;
       case 'save-profile': if (!busy) saveProfile(); break;
@@ -1440,9 +1483,9 @@
     if (lsGet(LS_BATTLE)) prosesBattle();
     var bl = lsGet(LS_BATTLE_LINK); if (bl) { muatLihatBattle(bl); tab = 'battle'; muatLB(false); }
     muatBattle(true);
-  } else if (lsGet(LS_ARENA_LINK)) { authView = 'daftar'; authMsg = 'Kamu diajak duel live! Sudah punya akun? Masuk. Belum? Daftar singkat di bawah.'; }
+  } else if (lsGet(LS_ARENA_LINK)) { authView = 'awal'; authMsg = 'Kamu diajak duel live! Sudah punya akun? Pilih Masuk. Belum? Buat akun singkat, bukti syarat menyusul setelah duel.'; }
   else if (lsGet(LS_BATTLE_LINK)) { authMsg = 'Kamu ditantang battle! Daftar atau masuk dulu untuk menjawab tantangannya.'; }
-  else { authView = lsGet(LS_KIRIM) ? 'login' : 'daftar'; if (lsGet(LS_KIRIM)) authMsg = 'Masuk dulu untuk menyimpan hasil tesmu.'; }
+  else { authView = lsGet(LS_KIRIM) ? 'login' : 'awal'; if (lsGet(LS_KIRIM)) authMsg = 'Masuk dulu untuk menyimpan hasil tesmu.'; }
   muatConfig().then(function () { if (!busy) render(); }, function () { });
   render();
   if (S.email) {

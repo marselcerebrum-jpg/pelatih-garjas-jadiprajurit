@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-17** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-18** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -151,7 +151,12 @@ Kedua fitur sudah bisa dipakai dan hasilnya bisa disimpan ke catatan:
 
 ## Syarat pendaftaran
 
-Saat calon peserta membuka halaman Daftar, pop-up **Syarat pendaftaran SIGAP** muncul otomatis. Peserta wajib mengunggah satu screenshot bukti untuk setiap syarat; tombol Daftar tidak bisa dipakai sebelum semua bukti lengkap, dan server juga menolak pendaftaran tanpa bukti.
+Alur masuk aplikasi:
+- **Belum punya akun:** halaman awal → **Buat akun baru** → Langkah 1 **Isi data diri** → Langkah 2 **Lengkapi bukti syarat** (satu screenshot per syarat) → **Daftar & mulai** → halaman sambutan (grup WhatsApp dan konsultasi admin) → **Mulai pakai SIGAP**.
+- **Sudah punya akun:** halaman awal → **Masuk** dengan email → langsung Beranda. Selama sesi tersimpan di HP, membuka web langsung ke Beranda tanpa halaman awal.
+- **Teman yang diundang duel live:** Langkah 1 saja, langsung duel; bukti syarat diminta setelah duel pertama.
+
+Pendaftaran tanpa bukti lengkap ditolak di HP dan di server.
 
 - **Mengubah syarat:** edit tab **Syarat** di spreadsheet. Kolom "Syarat" berisi teks yang tampil, "Link" opsional (misalnya link profil atau postingan), dan "Aktif" diisi `Tidak` untuk menyembunyikan syarat. Perubahan berlaku dalam 5 menit tanpa deploy ulang.
 - **Melihat bukti:** kolom **Bukti Syarat** di tab Peserta berisi link file di Google Drive (folder *Bukti Syarat - SIGAP JadiPrajurit*), satu link per syarat. File hanya bisa dibuka akun pemilik dan yang diberi akses.

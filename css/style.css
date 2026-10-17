@@ -1,6 +1,6 @@
 /* SIGAP – JadiPrajurit */
 :root{
-  --versi:"2026.10.11-17";
+  --versi:"2026.10.11-18";
   --bg:#F3F2EC; --card:#FFFFFF; --ink:#17211B; --muted:#4B5550; --line:#E1DFD6; --line2:#ECEAE2;
   --hero:#1F3A2A; --hero-ink:#F3F2EC; --hero-soft:#D9E3D4;
   --btn:#17211B; --btn-ink:#FFFFFF; --field:#FFFFFF; --field-line:#C9C6BA;
@@ -138,3 +138,8 @@ a.inline{color:var(--good);font-weight:600}
 .f .tag{align-self:flex-start}
 
 .card.goodcard{border-color:var(--good-bar);background:var(--good-soft)}
+
+.langkah{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.langkah b{color:var(--ink);font-size:15px}
+.langkah-bar{height:6px;border-radius:3px;background:var(--line2);overflow:hidden;margin-top:4px}
+.langkah-bar i{display:block;height:100%;background:var(--good-bar)}
