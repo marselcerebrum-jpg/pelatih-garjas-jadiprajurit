@@ -9,18 +9,18 @@
 <link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=Saira+Stencil+One&display=swap">
 <style>
 :root{
-  --bg:#F3F2EC;--card:#FFFFFF;--ink:#17211B;--muted:#4B5550;--line:#E1DFD6;--line2:#ECEAE2;
-  --hero:#1F3A2A;--hero-ink:#F3F2EC;--hero-soft:#D9E3D4;--btn:#17211B;--btn-ink:#FFFFFF;
-  --field:#FFFFFF;--field-line:#C9C6BA;--good:#2F5D34;--good-soft:#E3EDDF;--warn:#9A4207;--warn-soft:#FBEFE3;--warn-ink:#5C2A06;--focus:#2563EB;
+  --bg:#E8ECE5;--card:#F7F8F4;--ink:#101A14;--muted:#56635A;--line:#D2D9CE;--line2:#E3E8DF;
+  --hero:#1E3F2B;--hero-ink:#F1F4EE;--hero-soft:#B9CCB4;--btn:#1E3F2B;--btn-ink:#F7F8F4;
+  --field:#FFFFFF;--field-line:#BFC9BB;--good:#24603A;--good-soft:#DCEBDC;--warn:#9A4207;--warn-soft:#FBEFE3;--warn-ink:#5C2A06;--focus:#2563EB;
   box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root{
-  --bg:#101511;--card:#19201B;--ink:#ECEFEA;--muted:#A8B1AB;--line:#2B342E;--line2:#232B25;
-  --hero:#24402E;--hero-ink:#F1F4EF;--hero-soft:#C3D2BD;--btn:#ECEFEA;--btn-ink:#101511;
-  --field:#141A16;--field-line:#3A453E;--good:#8CCB86;--good-soft:#1E3322;--warn:#F2A766;--warn-soft:#3A2414;--warn-ink:#F6CFA8;--focus:#7AA7FF;color-scheme:dark;
+  --bg:#0E1812;--card:#16231B;--ink:#E9F0E9;--muted:#9DAAA1;--line:#26362C;--line2:#1D2B22;
+  --hero:#1A3424;--hero-ink:#EEF4EC;--hero-soft:#A7BEA3;--btn:#9BD18F;--btn-ink:#0E1812;
+  --field:#111D16;--field-line:#33463A;--good:#9BD18F;--good-soft:#1C3324;--warn:#F2A766;--warn-soft:#3A2414;--warn-ink:#F6CFA8;--focus:#7AA7FF;color-scheme:dark;
 }}
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Public Sans','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
@@ -95,6 +95,10 @@ table.laps th{font-size:12px;color:var(--muted);font-weight:600;border-top:0}
 .brandx img{height:30px;width:auto;display:block}.brandx span{border-left:1px solid var(--line);padding-left:10px}
 .brandx .logo-gelap{display:none}
 @media (prefers-color-scheme: dark){.brandx .logo-terang{display:none}.brandx .logo-gelap{display:block}}
+.card{border-radius:14px}.btn{border-radius:12px;font-weight:700;transition:transform .08s ease}.btn:active{transform:scale(.98)}
+.chip{border-radius:10px;border-width:1.5px;font-weight:700}.in{border-radius:12px;border-width:1.5px}
+.res-num,.mega,.mid,.hud .num{font-family:'Saira Stencil One','Archivo',sans-serif;font-weight:400}
+@media (prefers-reduced-motion: reduce){*{transition:none !important}.btn:active{transform:none}}
 </style>
 </head>
 <body>
