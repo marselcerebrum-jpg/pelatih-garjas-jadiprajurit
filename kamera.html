@@ -335,7 +335,13 @@ resetParam(); renderSetup();
 
 /* ================= Kamera & model ================= */
 let landmarker = null, stream = null, raf = 0, wakeLock = null, audio = null, S = null;
-$('#start').addEventListener('click', mulai);
+// Browser HP hanya mengizinkan suara bila "dibuka" tepat saat pengguna mengetuk layar.
+function siapkanSuara() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { } // iOS 17+: tetap bersuara walau mode senyap
+  try { const AC = window.AudioContext || window.webkitAudioContext; if (AC && !audio) audio = new AC(); if (audio && audio.state !== 'running') audio.resume(); } catch (e) { }
+  try { if ('speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch (e) { }
+}
+$('#start').addEventListener('click', () => { siapkanSuara(); mulai(); });
 $('#cancel').addEventListener('click', () => { if (A && A.fase === 'duel' && !confirm('Keluar dari duel? Skormu dihitung sampai saat ini.')) return; if (A && A.fase === 'duel') { berhenti(true); return; } berhenti(false); if (A) { arenaSiap(false); $('#arena-lobby').style.display = 'flex'; } });
 $('#finish').addEventListener('click', () => { if (A && !S.mulai) { if (A.host) hostMulai(); return; } if (A && A.fase === 'duel' && !confirm('Menyerah dan akhiri duel sekarang?')) return; berhenti(true); });
 
@@ -495,7 +501,7 @@ function catatTidakSah(alasan) {
 let fbTimer = 0;
 function feedback(t, k) { if (S.lastFeedback === t) return; S.lastFeedback = t; setStatus(t, k); clearTimeout(fbTimer); fbTimer = setTimeout(() => { S.lastFeedback = ''; }, 1200); }
 function setStatus(t, k) { const el = $('#status'); if (el.textContent !== t) el.textContent = t; el.className = k || ''; }
-function bunyi(f, d) { try { if (!audio) return; const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime; o.frequency.value = f; o.connect(g); g.connect(audio.destination); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.start(t); o.stop(t + d + 0.02); } catch (e) { } }
+function bunyi(f, d) { try { if (!audio) return; if (audio.state !== 'running') audio.resume(); const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime; o.frequency.value = f; o.connect(g); g.connect(audio.destination); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.start(t); o.stop(t + d + 0.02); } catch (e) { } }
 
 /* ================= Selesai ================= */
 function tutupKamera() {
@@ -574,7 +580,7 @@ function teksUndang() { return namaPendekA(sesi.profil.name) + ' menantangmu due
 function daftarPeserta() {
   return Object.values(A.peserta).sort((a, b) => (b.host ? 1 : 0) - (a.host ? 1 : 0) || String(a.t).localeCompare(String(b.t))).slice(0, 6);
 }
-function ucapA(t) { try { if (!$('#voice').checked || !('speechSynthesis' in window)) return; const u = new SpeechSynthesisUtterance(t); u.lang = 'id-ID'; u.rate = 1.15; speechSynthesis.speak(u); } catch (e) { } }
+function ucapA(t) { try { if (!$('#voice').checked || !('speechSynthesis' in window)) return; if (speechSynthesis.paused) speechSynthesis.resume(); if (speechSynthesis.pending) speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'id-ID'; u.rate = 1.15; speechSynthesis.speak(u); } catch (e) { } }
 function metaSaya() { return { token: A.token, nama: namaPendekA(sesi.profil.name), host: A.host, siap: A.siap, item: opt.item, ronde: A.ronde, t: A.masuk }; }
 function lacak() { if (A.ch && A.terhubung) A.ch.track(metaSaya()); }
 function kirimA(event, payload) { if (A.ch) A.ch.send({ type: 'broadcast', event, payload }); }
@@ -596,8 +602,9 @@ function renderLobby() {
     h += '<div class="f">Gerakan<div class="chips">' + ['pushup', 'situp', 'pullup'].map((k) => '<button type="button" class="chip" data-aitem="' + k + '" aria-pressed="' + (k === opt.item) + '">' + esc(k === 'pullup' ? (opt.gender === 'Wanita' ? 'Chinning' : 'Pull-up') : ITEM[k].nama) + '</button>').join('') + '</div></div>';
   }
   h += '</div>';
+  h += '<div class="card stack"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><label style="display:flex;gap:10px;align-items:center;font-weight:600;font-size:14px"><input type="checkbox" id="a-suara"' + ($('#voice').checked ? ' checked' : '') + ' style="width:22px;height:22px"> Suara komentator</label><button type="button" class="btn ghost small" id="a-tes-suara">Tes suara</button></div><p class="tiny muted" style="margin:0">Tidak terdengar? Naikkan volume media, matikan mode senyap atau getar, lalu tekan Tes suara.</p></div>';
   h += '<button class="btn" id="a-kamera">' + (A.siap ? 'Kamera siap' : 'Siapkan kamera') + '</button>';
-  h += '<p class="tiny muted" style="margin:0">Tekan Siapkan kamera, taruh HP sesuai panduan, lalu ambil posisi awal. Status berubah menjadi Siap saat posisimu terbaca. ' + (A.host ? 'Kamu bisa memulai duel setelah minimal 2 peserta siap.' : 'Tuan rumah yang memulai duel.') + '</p>';
+  h += '<p class="tiny muted" style="margin:0">Tekan Siapkan kamera, taruh HP sesuai panduan, lalu ambil posisi awal. Kamera mendeteksi posisimu dan status berubah menjadi Siap. Duel <b>mulai otomatis</b> saat semua peserta (minimal 2) siap selama 3 detik, jadi tidak perlu menyentuh HP.</p>';
   if (A.host && ps.length >= 2) h += '<p class="small" style="margin:0;font-weight:700;color:' + (semuaSiap ? 'var(--good)' : 'var(--muted)') + '">' + (semuaSiap ? 'Semua peserta siap.' : 'Menunggu semua peserta siap.') + '</p>';
   h += '<a class="btn ghost" href="./">Keluar dari ruang</a>';
   el.innerHTML = h;
@@ -609,7 +616,7 @@ function renderHudA() {
     const semuaSiap = ps.length >= 2 && ps.every((p) => p.siap);
     el.innerHTML = '<div class="a-panel">' + ps.map((p) => '<div class="a-row"><span>' + esc(p.nama) + (p.token === A.token ? ' (kamu)' : '') + '</span><b style="color:' + (p.siap ? '#8CCB86' : '#F2B27A') + '">' + (p.siap ? 'Siap' : 'Belum') + '</b></div>').join('') + '</div>';
     const f = $('#finish');
-    if (A.host) { f.textContent = 'Mulai duel'; f.disabled = !semuaSiap; } else { f.textContent = 'Menunggu tuan rumah'; f.disabled = true; }
+    if (A.host) { f.textContent = semuaSiap ? 'Mulai sekarang' : 'Mulai otomatis saat semua siap'; f.disabled = !semuaSiap; } else { f.textContent = semuaSiap ? 'Duel segera dimulai' : 'Mulai otomatis saat semua siap'; f.disabled = true; }
     return;
   }
   const skor = (t) => (t === A.token ? S.count : (A.skor[t] || 0));
@@ -651,8 +658,9 @@ async function arenaHubungkan() {
     if (!A.host && !host && A.fase === 'lobby') A.status = 'Tuan rumah belum ada di ruang.'; else if (A.terhubung) A.status = 'Terhubung';
     const ps = daftarPeserta();
     if (!ps.some((p) => p.token === A.token) && Object.keys(baru).length >= 6) A.status = 'Ruang penuh (maksimal 6 peserta).';
-    renderLobby(); renderHudA();
+    renderLobby(); renderHudA(); cekAutoMulai();
   });
+  A.ch.on('broadcast', { event: 'auto' }, ({ payload }) => { if (!A || A.fase !== 'lobby') return; if (payload && payload.batal) setStatus('Ada peserta yang belum siap. Menunggu…', ''); else { ucapA('Semua siap, duel dimulai!'); setStatus('Semua siap! Duel dimulai…', 'ok'); } });
   A.ch.on('broadcast', { event: 'mulai' }, ({ payload }) => arenaMulai(payload));
   A.ch.on('broadcast', { event: 'skor' }, ({ payload }) => { if (A.fase === 'duel' && payload && payload.token) { A.skor[payload.token] = payload.skor; renderHudA(); cekPemimpin(); } });
   A.ch.on('broadcast', { event: 'selesai' }, ({ payload }) => { if (payload && payload.token) { A.skor[payload.token] = payload.skor; A.selesai[payload.token] = true; renderTunggu(); cekSemuaSelesai(); } });
@@ -666,11 +674,21 @@ async function arenaHubungkan() {
   });
   renderLobby();
 }
-function arenaSiap(v) { if (!A || A.fase !== 'lobby' || A.siap === v) return; A.siap = v; lacak(); renderHudA(); renderLobby(); setStatus(v ? (A.host ? 'Siap! Tekan Mulai duel saat semua siap' : 'Siap! Menunggu tuan rumah memulai') : 'Ambil posisi awal', v ? 'ok' : 'bad'); }
+// Duel mulai otomatis saat semua peserta (minimal 2) siap selama 3 detik. Tuan rumah yang mengirim aba-aba.
+function cekAutoMulai() {
+  if (!A || !A.host || A.fase !== 'lobby' || !S || !stream || S.mulai) { batalAuto(); return; }
+  const ps = daftarPeserta(), semua = ps.length >= 2 && ps.every((p) => p.siap);
+  if (!semua) { if (A.autoT) { batalAuto(); kirimA('auto', { batal: true }); setStatus('Menunggu semua peserta siap…', ''); } return; }
+  if (A.autoT) return;
+  kirimA('auto', { batal: false }); ucapA('Semua siap, duel dimulai!'); setStatus('Semua siap! Duel dimulai…', 'ok');
+  A.autoT = setTimeout(() => { A.autoT = null; const ok = daftarPeserta().filter((p) => p.siap).length >= 2 && daftarPeserta().every((p) => p.siap); if (ok && A.fase === 'lobby') hostMulai(); }, 3000);
+}
+function batalAuto() { if (A && A.autoT) { clearTimeout(A.autoT); A.autoT = null; } }
+function arenaSiap(v) { if (!A || A.fase !== 'lobby' || A.siap === v) return; A.siap = v; lacak(); renderHudA(); renderLobby(); setStatus(v ? 'Siap! Tahan posisi, duel mulai otomatis saat semua siap' : 'Ambil posisi awal', v ? 'ok' : 'bad'); cekAutoMulai(); }
 function arenaMulai(p) {
   if (!A || A.fase === 'duel' || !S || !stream) return;
   if (!p || !Array.isArray(p.duel) || p.duel.indexOf(A.token) < 0) return;
-  A.fase = 'duel'; A.ronde = p.ronde; A.duel = p.duel; A.namaDuel = p.nama || {}; A.skor = {}; A.selesai = {}; A.hasil = null; A.pemimpin = ''; A.sepuluh = false;
+  batalAuto(); A.fase = 'duel'; A.ronde = p.ronde; A.duel = p.duel; A.namaDuel = p.nama || {}; A.skor = {}; A.selesai = {}; A.hasil = null; A.pemimpin = ''; A.sepuluh = false;
   $('#finish').textContent = 'Menyerah'; $('#finish').disabled = false;
   renderHudA(); ucapA('Siap'); hitungMundur();
 }
@@ -737,11 +755,13 @@ function arenaUlang(ronde) {
   $('#result').style.display = 'none'; $('#arena-lobby').style.display = 'flex';
   renderLobby();
 }
+document.addEventListener('change', (e) => { if (e.target && e.target.id === 'a-suara') $('#voice').checked = e.target.checked; });
 document.addEventListener('click', (e) => {
   if (!A) return;
   const b = e.target.closest('button'); if (!b) return;
   if (b.id === 'a-salin') { const t = linkUndang(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'Link disalin'; }, () => prompt('Salin link ini:', t)); }
-  if (b.id === 'a-kamera') { if (!A.terhubung) { alert('Belum terhubung ke ruang duel. Tunggu sebentar atau muat ulang halaman.'); return; } mulai(); }
+  if (b.id === 'a-tes-suara') { siapkanSuara(); bunyi(880, 0.2); setTimeout(() => bunyi(1046, 0.25), 260); setTimeout(() => ucapA('Suara aktif. Siap duel!'), 600); return; }
+  if (b.id === 'a-kamera') { siapkanSuara(); if (!A.terhubung) { alert('Belum terhubung ke ruang duel. Tunggu sebentar atau muat ulang halaman.'); return; } mulai(); }
   if (b.dataset.aitem && A.host && A.fase === 'lobby') { opt.item = b.dataset.aitem; resetParam(); renderSetup(); lacak(); renderLobby(); }
   if (b.id === 'a-ulang' && A.host) { const r = A.ronde + 1; kirimA('ulang', { ronde: r }); arenaUlang(r); }
   if (b.id === 'a-story' && A.hasil) {
