@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-20';
+  var VERSI = '2026.10.11-21';
   var BACKEND_DIHARAPKAN = '2026.10.11-11';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 

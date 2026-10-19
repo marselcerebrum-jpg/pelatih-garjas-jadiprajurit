@@ -1,6 +1,6 @@
 /* SIGAP – JadiPrajurit */
 :root{
-  --versi:"2026.10.11-20";
+  --versi:"2026.10.11-21";
   --bg:#F3F2EC; --card:#FFFFFF; --ink:#17211B; --muted:#4B5550; --line:#E1DFD6; --line2:#ECEAE2;
   --hero:#1F3A2A; --hero-ink:#F3F2EC; --hero-soft:#D9E3D4;
   --btn:#17211B; --btn-ink:#FFFFFF; --field:#FFFFFF; --field-line:#C9C6BA;
@@ -241,3 +241,6 @@ h2{font-size:16px;letter-spacing:-0.01em}
 
 @media (prefers-reduced-motion: reduce){*{transition:none !important}.btn:active,.chip:active{transform:none}}
 .hero .big + .soft{white-space:nowrap}
+/* Label streak tetap di pojok kanan atas papan nilai, supaya angka berkoma tidak mendorongnya keluar */
+.hero .row > .pill{position:absolute;top:16px;right:16px}
+.hero .row > div:first-child{min-width:0}
