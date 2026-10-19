@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-20** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-22** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -89,6 +89,10 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 **Casis wajib menyimpan nomor admin.** Setelah daftar, kartu kontak admin langsung terbuka otomatis di HP casis. Casis tidak bisa masuk ke aplikasi sebelum mencentang "Saya sudah menyimpan nomor admin". Konfirmasinya tercatat di kolom **Simpan Nomor Admin** pada tab Peserta. Casis yang mendaftar sebelum fitur ini juga akan diminta langkah yang sama saat membuka aplikasi.
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
+
+## Manual book
+
+File `panduan/Manual-Book-SIGAP.pdf` (15 halaman, sekitar 2 MB) adalah panduan pengguna. Tautannya muncul di halaman awal, halaman sambutan setelah daftar, Beranda (hanya untuk pengguna dengan kurang dari 3 catatan), dan menu Profil. Halaman `?cek=1` memeriksa apakah file ini sudah ada di repo. Untuk memperbarui manual, cukup ganti file PDF dengan nama yang sama di folder `panduan`.
 
 ## Pencatatan tombol Bagikan
 

@@ -1,6 +1,6 @@
 /* SIGAP – JadiPrajurit */
 :root{
-  --versi:"2026.10.11-17";
+  --versi:"2026.10.11-22";
   --bg:#F3F2EC; --card:#FFFFFF; --ink:#17211B; --muted:#4B5550; --line:#E1DFD6; --line2:#ECEAE2;
   --hero:#1F3A2A; --hero-ink:#F3F2EC; --hero-soft:#D9E3D4;
   --btn:#17211B; --btn-ink:#FFFFFF; --field:#FFFFFF; --field-line:#C9C6BA;
@@ -138,3 +138,109 @@ a.inline{color:var(--good);font-weight:600}
 .f .tag{align-self:flex-start}
 
 .card.goodcard{border-color:var(--good-bar);background:var(--good-soft)}
+
+.langkah{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.langkah b{color:var(--ink);font-size:15px}
+.langkah-bar{height:6px;border-radius:3px;background:var(--line2);overflow:hidden;margin-top:4px}
+.langkah-bar i{display:block;height:100%;background:var(--good-bar)}
+
+
+/* ================================================================
+   Tema SIGAP 2026: papan lapangan
+   Latar abu-hijau lapangan, hijau loreng, oranye sinyal dari bintang
+   logo, dan angka stensil seperti papan skor. Hanya CSS: tanpa huruf
+   tambahan, tanpa blur, animasi hanya saat ditekan.
+   ================================================================ */
+:root{
+  --bg:#E8ECE5; --card:#F7F8F4; --ink:#101A14; --muted:#56635A; --line:#D2D9CE; --line2:#E3E8DF;
+  --hero:#1E3F2B; --hero-ink:#F1F4EE; --hero-soft:#B9CCB4;
+  --btn:#1E3F2B; --btn-ink:#F7F8F4; --field:#FFFFFF; --field-line:#BFC9BB;
+  --good:#24603A; --good-bar:#2E7A49; --good-soft:#DCEBDC;
+  --warn:#A2470A; --warn-bar:#EE8A2A; --warn-soft:#FBEBDA; --warn-ink:#5A2805;
+  --sinyal:#EE8A2A; --track:#D9DFD4; --angka:'Saira Stencil One','Archivo',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1812; --card:#16231B; --ink:#E9F0E9; --muted:#9DAAA1; --line:#26362C; --line2:#1D2B22;
+    --hero:#1A3424; --hero-ink:#EEF4EC; --hero-soft:#A7BEA3;
+    --btn:#9BD18F; --btn-ink:#0E1812; --field:#111D16; --field-line:#33463A;
+    --good:#9BD18F; --good-bar:#7CC271; --good-soft:#1C3324;
+    --warn:#F5A55A; --warn-bar:#F39B3D; --warn-soft:#3A2414; --warn-ink:#F8D2AA;
+    --sinyal:#F39B3D; --track:#26362C;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1812; --card:#16231B; --ink:#E9F0E9; --muted:#9DAAA1; --line:#26362C; --line2:#1D2B22;
+  --hero:#1A3424; --hero-ink:#EEF4EC; --hero-soft:#A7BEA3;
+  --btn:#9BD18F; --btn-ink:#0E1812; --field:#111D16; --field-line:#33463A;
+  --good:#9BD18F; --good-bar:#7CC271; --good-soft:#1C3324;
+  --warn:#F5A55A; --warn-bar:#F39B3D; --warn-soft:#3A2414; --warn-ink:#F8D2AA;
+  --sinyal:#F39B3D; --track:#26362C;
+}
+
+/* Tipografi */
+.top h1{font-size:26px;letter-spacing:-0.02em;line-height:1.1}
+h2{font-size:16px;letter-spacing:-0.01em}
+.sub{font-size:13.5px;line-height:1.45}
+
+/* Permukaan: kartu datar dengan garis tipis, sudut lebih tegas */
+.card{border-radius:14px;border:1px solid var(--line);box-shadow:none}
+.note{border-radius:12px}
+
+/* Papan nilai: satu-satunya elemen yang tampil berani */
+.hero{position:relative;border-radius:18px;padding:22px 20px 18px;overflow:hidden;
+  background-color:var(--hero);
+  background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+  background-size:24px 24px}
+.hero::before,.hero::after{content:"";position:absolute;width:22px;height:22px;border:3px solid var(--sinyal);pointer-events:none}
+.hero::before{top:10px;left:10px;border-right:0;border-bottom:0}
+.hero::after{bottom:10px;right:10px;border-left:0;border-top:0}
+.big,.res-num,.lb-rank,.lb-val{font-family:var(--angka);font-weight:400;letter-spacing:0}
+.hero .big{font-size:76px;line-height:.9}
+.hbar{height:12px;border-radius:0;background:rgba(241,244,238,.16);
+  -webkit-mask:repeating-linear-gradient(90deg,#000 0 calc(5% - 3px),transparent calc(5% - 3px) 5%);
+          mask:repeating-linear-gradient(90deg,#000 0 calc(5% - 3px),transparent calc(5% - 3px) 5%)}
+.hbar>i{height:12px;border-radius:0;background:var(--sinyal)}
+.hbar>b{display:none}
+.pill{border-radius:8px;background:rgba(241,244,238,.14);color:var(--hero-ink);font-weight:700}
+
+/* Tombol: tegas, tanpa bayangan; umpan balik saat ditekan saja */
+.btn{border-radius:12px;min-height:50px;font-weight:700;letter-spacing:.005em;transition:transform .08s ease,background-color .15s ease}
+.btn:active{transform:scale(.98)}
+.btn.ghost{background:transparent;border:1.5px solid var(--field-line)}
+.hero .btn{background:var(--sinyal);color:#1B1004}
+.hero .btn.ghost{background:transparent;color:var(--hero-ink);border-color:rgba(241,244,238,.35)}
+
+/* Pilihan (chip): tag lapangan, bukan pil bulat */
+.chip{border-radius:10px;border:1.5px solid var(--field-line);font-weight:700;transition:transform .08s ease}
+.chip:active{transform:scale(.97)}
+.chip[aria-pressed="true"]{background:var(--hero);border-color:var(--hero);color:var(--hero-ink)}
+.tag{border-radius:6px;font-weight:700;letter-spacing:.01em}
+
+/* Isian */
+.in{border-radius:12px;border:1.5px solid var(--field-line);background:var(--field);transition:border-color .15s ease}
+.in:focus{border-color:var(--good-bar);outline:none;box-shadow:0 0 0 3px var(--good-soft)}
+
+/* Peringkat: angka stensil, baris rapi, tombol Tantang sebaris */
+.lb-row{grid-template-columns:40px minmax(0,1fr) auto auto;border-radius:10px;padding:12px 8px}
+.lb-rank{font-size:22px;color:var(--muted)}
+.lb-row:nth-child(1) .lb-rank{color:var(--sinyal)}
+.lb-val{font-size:24px}
+.lb-row .linkbtn{font-size:12px;font-weight:700;border:1.5px solid var(--field-line);border-radius:8px;padding:6px 10px;margin-left:4px;color:var(--ink)}
+
+/* Navigasi bawah: penanda aktif berupa garis oranye di atas ikon */
+.tabs{border-top:1px solid var(--line);background:var(--card)}
+.tabs button{position:relative;color:var(--muted);transition:color .15s ease}
+.tabs button[aria-current="page"]{color:var(--good)}
+.tabs button[aria-current="page"]::before{content:"";position:absolute;top:-7px;left:28%;right:28%;height:3px;border-radius:0 0 3px 3px;background:var(--sinyal)}
+
+/* Kartu status dan langkah pendaftaran */
+.card.goodcard{border-color:var(--good-bar);background:var(--good-soft)}
+.langkah-bar{height:8px;border-radius:0;-webkit-mask:repeating-linear-gradient(90deg,#000 0 calc(50% - 3px),transparent calc(50% - 3px) 50%);mask:repeating-linear-gradient(90deg,#000 0 calc(50% - 3px),transparent calc(50% - 3px) 50%)}
+.langkah-bar i{background:var(--sinyal)}
+
+@media (prefers-reduced-motion: reduce){*{transition:none !important}.btn:active,.chip:active{transform:none}}
+.hero .big + .soft{white-space:nowrap}
+/* Label streak tetap di pojok kanan atas papan nilai, supaya angka berkoma tidak mendorongnya keluar */
+.hero .row > .pill{position:absolute;top:16px;right:16px}
+.hero .row > div:first-child{min-width:0}
