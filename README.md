@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-22** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-23** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -89,6 +89,12 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 **Casis wajib menyimpan nomor admin.** Setelah daftar, kartu kontak admin langsung terbuka otomatis di HP casis. Casis tidak bisa masuk ke aplikasi sebelum mencentang "Saya sudah menyimpan nomor admin". Konfirmasinya tercatat di kolom **Simpan Nomor Admin** pada tab Peserta. Casis yang mendaftar sebelum fitur ini juga akan diminta langkah yang sama saat membuka aplikasi.
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
+
+## Beranda: sorotan Battle dan daftar fitur
+
+- **Kartu Battle** tepat di bawah papan nilai: rekor gabungan battle santai dan duel live, penanda tantangan baru, tombol **Duel live** (langsung membuat ruang duel) dan **Tantang casis** atau **Jawab tantangan**.
+- **Fitur SIGAP**: kisi 9 ubin yang langsung membuka Catat latihan, Tes kamera, Lari 12 menit, Progres, Program latihan, Peringkat, Battle dan duel, Bagikan story, dan Manual book.
+- Tombol Battle di halaman Peringkat juga disorot.
 
 ## Manual book
 
