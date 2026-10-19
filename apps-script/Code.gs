@@ -12,7 +12,7 @@
  * Version: New version → Deploy. JANGAN pilih "New deployment", karena URL-nya berubah.
  */
 
-var VERSI_BACKEND = '2026.10.11-10';
+var VERSI_BACKEND = '2026.10.11-11';
 var TZ = 'Asia/Jakarta';
 
 var TAB = {
@@ -23,7 +23,8 @@ var TAB = {
   KONTAK: 'Simpan Kontak',
   SYARAT: 'Syarat',
   BATTLE: 'Battle',
-  ARENA: 'Arena'
+  ARENA: 'Arena',
+  BAGIKAN: 'Bagikan'
 };
 var NAMA_FOLDER_BUKTI = 'Bukti Syarat - SIGAP JadiPrajurit';
 var MAX_BUKTI_BYTES = 5 * 1024 * 1024;
@@ -41,6 +42,9 @@ var MATRA_STANDAR = ['Semua', 'AD', 'AL', 'AU'];
 var KOLOM_PENGATURAN = ['Kunci', 'Nilai', 'Keterangan'];
 var KOLOM_BATTLE = ['ID', 'Dibuat', 'Item', 'Penantang Email', 'Penantang Nama', 'Ditantang Email', 'Ditantang Nama', 'Skor Penantang', 'Nilai Penantang', 'Skor Ditantang', 'Nilai Ditantang', 'Status', 'Batas Waktu', 'Pemenang', 'Selesai'];
 var KOLOM_ARENA = ['ID', 'Waktu', 'Kode Ruang', 'Item', 'Tuan Rumah', 'Email Peserta', 'Hasil (JSON)', 'Pemenang'];
+var KOLOM_BAGIKAN = ['Waktu', 'Tanggal', 'Email', 'Nama', 'Jenis', 'Aksi', 'Konteks'];
+var JENIS_BAGIKAN = ['story', 'link', 'ringkasan', 'undangan'];
+var AKSI_BAGIKAN = ['unduh', 'bagikan', 'salin', 'whatsapp'];
 var KOLOM_SYARAT = ['No', 'Syarat', 'Link (opsional)', 'Aktif (Ya/Tidak)'];
 var KOLOM_KONTAK = ['Waktu', 'ID Peserta', 'Nama Kontak', 'No. WhatsApp', 'Email JadiPrajurit', 'Status'];
 
@@ -151,7 +155,9 @@ function setup() {
 
   siapkanTab_(ss, TAB.BATTLE, KOLOM_BATTLE, 6);
   siapkanTab_(ss, TAB.ARENA, KOLOM_ARENA, 7);
-  var kontak = siapkanTab_(ss, TAB.KONTAK, KOLOM_KONTAK, 8);
+  var bagikan = siapkanTab_(ss, TAB.BAGIKAN, KOLOM_BAGIKAN, 8);
+  bagikan.getRange('B2:B').setNumberFormat('yyyy-mm-dd');
+  var kontak = siapkanTab_(ss, TAB.KONTAK, KOLOM_KONTAK, 9);
   kontak.getRange('B:F').setNumberFormat('@');
   kontak.setColumnWidth(6, 320);
 
@@ -202,6 +208,7 @@ function doPost(e) {
     switch (body.action) {
       case 'daftar': return json_(daftar_(body.profil || {}, body.bukti, body.cepat === true));
       case 'lengkapiSyarat': return json_(lengkapiSyarat_(body.email, body.bukti));
+      case 'catatBagikan': return json_(catatBagikan_(body.email, body.jenis, body.aksi, body.konteks));
       case 'arenaSimpan': return json_(arenaSimpan_(body.email, body.kode, body.ronde, body.item, body.peserta));
       case 'masuk': return json_(masuk_(body.email));
       case 'simpanProfil': return json_(simpanProfil_(body.email, body.profil || {}));
@@ -758,6 +765,33 @@ function lengkapiSyarat_(email, bukti) {
   var link = simpanBukti_(String(r[0]), String(r[2]), blob);
   denganKunci_(function () { sh.getRange(baris, 25).setValue(link || 'Tidak ada syarat aktif'); });
   return { ok: true, profil: profilPublik_(sh, baris) };
+}
+
+/* ------------------------------------------------------------------ */
+/* Pencatatan tombol Bagikan                                           */
+/* ------------------------------------------------------------------ */
+
+// Mencatat satu ketukan bagikan (story, link, ringkasan, undangan) supaya keaktifan berbagi bisa dihitung.
+// Tidak memakai kunci global agar tidak mengganggu pendaftaran dan penyimpanan catatan.
+function catatBagikan_(email, jenis, aksi, konteks) {
+  jenis = String(jenis || '').toLowerCase(); aksi = String(aksi || '').toLowerCase();
+  if (JENIS_BAGIKAN.indexOf(jenis) < 0 || AKSI_BAGIKAN.indexOf(aksi) < 0) throw { kode: 'data_tidak_valid', pesan: 'jenis' };
+  konteks = String(konteks || '').replace(/[^A-Za-z0-9:_-]/g, '').slice(0, 40);
+  var em = normEmail_(email), cache = CacheService.getScriptCache();
+  var nama = cache.get('pb:' + em);
+  if (nama === null) {
+    var sh = tab_(TAB.PESERTA), baris = cariBaris_(sh, 4, em);
+    if (baris < 0) throw { kode: 'tidak_ditemukan' };
+    nama = String(sh.getRange(baris, 3).getValue()).replace(/^'/, '') || '-';
+    cache.put('pb:' + em, nama, 21600);
+  }
+  var kunci = 'bl:' + em + ':' + Utilities.formatDate(new Date(), TZ, 'yyyyMMddHHmm'), n = Number(cache.get(kunci) || 0);
+  if (n >= 30) return { ok: true, dilewati: true };
+  cache.put(kunci, String(n + 1), 120);
+  // Tanggal disimpan sebagai tanggal sungguhan (tengah malam) supaya mudah dihitung dengan rumus di spreadsheet.
+  var hari = Utilities.parseDate(Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'), TZ, 'yyyy-MM-dd');
+  tab_(TAB.BAGIKAN).appendRow([sekarang_(), hari, em, teks_(nama, 80), jenis, aksi, konteks]);
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */

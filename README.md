@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-18** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-20** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -90,6 +90,16 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
 
+## Pencatatan tombol Bagikan
+
+Setiap ketukan pada tombol bagikan dicatat ke tab **Bagikan** (waktu, tanggal, email, nama, jenis, aksi, konteks) supaya keaktifan berbagi bisa dihitung:
+
+- **Jenis:** `story` (gambar story), `link` (link hasil), `ringkasan` (ringkasan mingguan), `undangan` (undangan duel dan battle).
+- **Aksi:** `unduh`, `bagikan` (menu bagikan bawaan HP, hanya dihitung bila benar-benar dibagikan), `salin`, `whatsapp`.
+- **Konteks:** isi yang dibagikan, misalnya `ringkasan`, `latihan:pushup`, `battle`, `arena`, `mingguan`.
+- Pencatatan tidak menunggu balasan server dan gagal diam-diam bila koneksi putus, jadi tidak pernah mengganggu pemakaian. Satu peserta dibatasi 30 catatan per menit dan ketukan sama dalam 3 detik dihitung sekali.
+- Tab **Target Event** di spreadsheet menghitung angka aktual, jalur harian, dan status setiap goal event secara otomatis dari tab Peserta, Catatan Latihan, Battle, Arena, dan Bagikan. Sel kuning (target, periode, jumlah video valid) boleh diubah.
+
 ## Data pendaftaran
 
 Wajib: bukti syarat, nama lengkap, email akun JadiPrajurit, jenis kelamin, usia, matra, dan persetujuan data. Opsional: tinggi, berat, domisili, tanggal tes, dan target nilai (bawaan 100). Nomor WhatsApp dan jalur **tidak lagi diminta**; data lama peserta yang sudah terisi tetap tersimpan.
@@ -102,7 +112,7 @@ Peserta bisa bertanding **bersamaan** dengan teman lewat tes kamera 1 menit (pus
 
 1. Tuan rumah membuka menu **Battle → Duel live → Buat ruang duel**, lalu mendapat **kode ruang 5 huruf** dan tombol **Undang lewat WhatsApp**.
 2. Teman membuka link (`?arena=KODE`) atau memasukkan kode di menu Battle. Teman tidak harus ada di Peringkat.
-3. Semua peserta menyiapkan kamera; status berubah menjadi **Siap** saat posisi awal terbaca. Tuan rumah menekan **Mulai duel**, lalu semua HP menghitung mundur bersamaan.
+3. Semua peserta menekan **Siapkan kamera** dan mengambil posisi awal. Kamera mendeteksi posisi dan status berubah menjadi **Siap**. Begitu semua peserta (minimal 2) siap selama 3 detik, duel **mulai otomatis** dengan aba-aba suara dan hitung mundur di semua HP, jadi tidak ada yang perlu menyentuh HP. Bila ada yang keluar dari posisi sebelum 3 detik, mulai otomatis dibatalkan dan menunggu semua siap lagi. Tuan rumah tetap punya tombol **Mulai sekarang** sebagai cadangan.
 4. Selama 1 menit, skor semua peserta tampil langsung (bar nyawa untuk duel 1 lawan 1, papan peringkat untuk lebih dari 2 orang), lengkap dengan suara komentator.
 5. Hasil ditentukan dari **nilai** (adil untuk pria/wanita dan antarmatra), disimpan ke tab **Arena**, dan bisa dibagikan sebagai story. Tuan rumah bisa langsung **Tanding ulang**.
 

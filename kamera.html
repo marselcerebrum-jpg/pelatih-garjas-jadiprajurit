@@ -595,7 +595,7 @@ function renderLobby() {
   let h = '<div class="stack" style="gap:6px"><a class="brandx" href="./"><img class="logo-terang" src="assets/logo-jadiprajurit.png" alt="JadiPrajurit"><img class="logo-gelap" src="assets/logo-jadiprajurit-terang.png" alt="JadiPrajurit"><span>SIGAP · Arena</span></a><h1>Duel live</h1><div class="sub">Bertanding bersamaan lewat tes kamera 1 menit. Yang dibandingkan nilai, jadi adil untuk semua.</div></div>';
   if (!A.valid) return void (el.innerHTML = h + '<div class="note warnbox small">Kode ruang tidak valid. Minta link baru ke temanmu.</div><a class="btn ghost" href="./">Kembali ke SIGAP</a>');
   h += '<div class="card stack" style="align-items:flex-start"><div class="sub">Kode ruang</div><div style="font:800 44px Archivo,sans-serif;letter-spacing:.12em;line-height:1">' + esc(A.kode || '…') + '</div>';
-  h += '<div class="btns" style="width:100%"><a class="btn" href="https://wa.me/?text=' + encodeURIComponent(A.kode ? teksUndang() : '') + '" target="_blank" rel="noopener">Undang lewat WhatsApp</a><button type="button" class="btn ghost" id="a-salin">Salin link</button></div>';
+  h += '<div class="btns" style="width:100%"><a class="btn" href="https://wa.me/?text=' + encodeURIComponent(A.kode ? teksUndang() : '') + '" data-catat="undangan|whatsapp|arena" target="_blank" rel="noopener">Undang lewat WhatsApp</a><button type="button" class="btn ghost" id="a-salin" data-catat="undangan|salin|arena">Salin link</button></div>';
   h += '<div class="tiny muted">Status: ' + esc(A.status) + '</div></div>';
   h += '<div class="card stack"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Peserta (' + ps.length + '/6)</h2><span class="tag">' + esc(labelItem()) + '</span></div>';
   if (!ps.length) h += '<p class="small muted" style="margin:0">Menunggu terhubung…</p>';
@@ -748,7 +748,7 @@ function tampilHasilA(p, lokal) {
   if (!p.tersimpan) h += '<div class="note small">Hasil belum tersimpan ke server (koneksi bermasalah), jadi peringkat sementara diurutkan dari jumlah gerakan.</div>';
   h += A.host ? '<button class="btn" id="a-ulang">Tanding ulang</button>' : '<div class="note small">Menunggu tuan rumah untuk tanding ulang…</div>';
   if (p.tersimpan) h += '<button class="btn ghost" id="a-story">Bagikan ke story</button>';
-  h += '<a class="btn ghost" href="https://wa.me/?text=' + encodeURIComponent(teksUndang()) + '" target="_blank" rel="noopener">Undang teman lain</a><a class="btn ghost" href="./">Kembali ke SIGAP</a>';
+  h += '<a class="btn ghost" href="https://wa.me/?text=' + encodeURIComponent(teksUndang()) + '" data-catat="undangan|whatsapp|arena" target="_blank" rel="noopener">Undang teman lain</a><a class="btn ghost" href="./">Kembali ke SIGAP</a>';
   const r = $('#result'); r.innerHTML = h; r.style.display = 'flex'; $('#setup').style.display = 'none'; $('#arena-lobby').style.display = 'none';
   window.scrollTo(0, 0);
 }
@@ -759,6 +759,15 @@ function arenaUlang(ronde) {
   $('#result').style.display = 'none'; $('#arena-lobby').style.display = 'flex';
   renderLobby();
 }
+// Catat ketukan bagikan/undang agar keaktifan berbagi bisa dihitung (permintaan kecil, tanpa menunggu balasan).
+const catatTerakhir = {};
+document.addEventListener('click', (e) => {
+  const t = e.target && e.target.closest ? e.target.closest('[data-catat]') : null; if (!t) return;
+  const p = String(t.getAttribute('data-catat')).split('|'), url = (window.CONFIG || {}).APPS_SCRIPT_URL;
+  if (!sesi || !sesi.email || !url) return;
+  const kunci = p.join('|'), kini = Date.now(); if (catatTerakhir[kunci] && kini - catatTerakhir[kunci] < 3000) return; catatTerakhir[kunci] = kini;
+  try { fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, keepalive: true, body: JSON.stringify({ action: 'catatBagikan', email: sesi.email, jenis: p[0], aksi: p[1], konteks: p[2] || '' }) }).catch(() => { }); } catch (x) { }
+});
 document.addEventListener('change', (e) => { if (e.target && e.target.id === 'a-suara') $('#voice').checked = e.target.checked; });
 document.addEventListener('click', (e) => {
   if (!A) return;

@@ -4,8 +4,8 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-19';
-  var BACKEND_DIHARAPKAN = '2026.10.11-10';
+  var VERSI = '2026.10.11-20';
+  var BACKEND_DIHARAPKAN = '2026.10.11-11';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
   var N = window.Nilai, ITEMS = N.ITEMS;
@@ -745,7 +745,7 @@
     if (!S.catatan.length) return h + '<div class="card stack"><p class="small muted" style="margin:0">Belum ada data. Catat latihan pertamamu untuk melihat grafik.</p><button class="btn" data-go="catat">Catat latihan</button></div>';
     var ws = weekSummary();
     h += '<div class="card stack"><div class="row"><h2>Ringkasan minggu ini</h2><span class="tiny muted">' + esc(ws.range) + '</span></div><div class="small" style="white-space:pre-line">' + esc(ws.body) + '</div>';
-    h += '<div class="btns"><button class="btn small" id="copy-week">Salin ringkasan</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(ws.full) + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a><button class="btn ghost small" data-go="bagikan">' + icon('share', 18) + 'Bagikan gambar</button></div></div>';
+    h += '<div class="btns"><button class="btn small" id="copy-week" data-catat="ringkasan|salin|mingguan">Salin ringkasan</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(ws.full) + '" data-catat="ringkasan|whatsapp|mingguan" target="_blank" rel="noopener">Kirim ke WhatsApp</a><button class="btn ghost small" data-go="bagikan">' + icon('share', 18) + 'Bagikan gambar</button></div></div>';
     var opts = [['garjas', 'Nilai jasmani']].concat(ITEMS.map(function (it) { return [it.key, itemLabel(it)]; }));
     h += '<div class="chips" role="group" aria-label="Pilih item">' + opts.map(function (o) { return '<button type="button" class="chip" data-pick="' + o[0] + '" aria-pressed="' + (progressPick === o[0]) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>';
     var series = progressPick === 'garjas' ? garjasSeries() : itemSeries(progressPick);
@@ -864,6 +864,26 @@
   /* ---------------- Bagikan hasil ---------------- */
   var share = { url: null, blob: null, loading: false, err: '', mode: 'ringkasan', logId: null, key: null };
   function namaPendek(n) { var b = String(n || '').trim().split(/\s+/); return (b[0] || 'Casis').slice(0, 15) + (b[1] ? ' ' + b[1].charAt(0).toUpperCase() + '.' : ''); }
+  /* ---------------- Pencatatan tombol Bagikan ---------------- */
+  // Mencatat ketukan bagikan agar keaktifan berbagi bisa dihitung. Ringan: satu permintaan kecil tanpa menunggu balasan.
+  var bagikanTerakhir = {};
+  function catatBagikan(jenis, aksi, konteks) {
+    try {
+      var url = window.CONFIG && window.CONFIG.APPS_SCRIPT_URL;
+      if (!S.email || !url) return;
+      var kunci = jenis + '|' + aksi + '|' + konteks, kini = Date.now();
+      if (bagikanTerakhir[kunci] && kini - bagikanTerakhir[kunci] < 3000) return;
+      bagikanTerakhir[kunci] = kini;
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, keepalive: true, body: JSON.stringify({ action: 'catatBagikan', email: S.email, jenis: jenis, aksi: aksi, konteks: konteks }) }).catch(function () { });
+    } catch (e) { }
+  }
+  function konteksBagikan() { return share.mode === 'latihan' ? 'latihan:' + share.key : (share.mode || 'ringkasan'); }
+  document.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-catat]') : null;
+    if (!t) return;
+    var p = String(t.getAttribute('data-catat')).split('|');
+    catatBagikan(p[0], p[1], p[2] || '');
+  });
   function linkBagikan() { var base = location.origin + location.pathname.replace(/index\.html$/, ''); return S.profil && S.profil.kodeBagikan ? base + '?h=' + S.profil.kodeBagikan : base; }
   function teksBagikan() {
     var g = currentScores().garjas, sy = LB.data && LB.data.saya;
@@ -949,12 +969,12 @@
     if (share.err) h += '<p class="small warn" style="margin:0">' + esc(share.err) + '</p>';
     h += '<div class="btns" style="width:100%">';
     if (navigator.share) h += '<button class="btn" id="share-native"' + (share.loading ? ' disabled' : '') + '>' + icon('share', 18) + 'Bagikan</button>';
-    if (share.url) h += '<a class="btn ghost" href="' + share.url + '" download="' + (modeBattle ? 'battle-sigap.png' : lg ? 'latihan-' + share.key + '-sigap.png' : 'hasil-sigap-jadiprajurit.png') + '">Unduh gambar</a>';
+    if (share.url) h += '<a class="btn ghost" href="' + share.url + '" data-catat="story|unduh|' + konteksBagikan() + '" download="' + (modeBattle ? 'battle-sigap.png' : lg ? 'latihan-' + share.key + '-sigap.png' : 'hasil-sigap-jadiprajurit.png') + '">Unduh gambar</a>';
     h += '</div><p class="tiny muted" style="margin:0;text-align:center">Ukuran pas untuk Instagram Story dan Status WhatsApp.</p></div>';
     var link = linkBagikan();
     h += '<div class="card stack"><h2>Link hasilmu</h2><div class="small" style="word-break:break-all;background:var(--line2);border-radius:10px;padding:10px 12px">' + esc(link) + '</div>';
     var teksNow = share.mode === 'arena' && share.arena ? teksArena(share.arena) : modeBattle ? teksBattle(share.battle) : lg ? teksLatihan(dataLatihan(share.logId, share.key)) : teksBagikan();
-    h += '<div class="btns"><button class="btn ghost small" id="share-copy">Salin link</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(teksNow + ' ' + link) + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a></div>';
+    h += '<div class="btns"><button class="btn ghost small" id="share-copy" data-catat="link|salin|' + konteksBagikan() + '">Salin link</button><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(teksNow + ' ' + link) + '" data-catat="link|whatsapp|' + konteksBagikan() + '" target="_blank" rel="noopener">Kirim ke WhatsApp</a></div>';
     h += '<p class="tiny muted" style="margin:0">Yang terlihat orang lain hanya nama depan, inisial, matra, dan nilaimu. Email tidak pernah ditampilkan.</p></div>';
     return h;
   }
@@ -968,7 +988,8 @@
         if (navigator.canShare && navigator.canShare({ files: [f] })) { data.files = [f]; data.text = teksN + ' ' + link; delete data.url; }
       }
     } catch (e) { }
-    navigator.share(data).catch(function () { });
+    var jenisN = data.files ? 'story' : 'link', konN = konteksBagikan();
+    navigator.share(data).then(function () { catatBagikan(jenisN, 'bagikan', konN); }, function () { });
   }
 
   /* ---------------- Story per latihan ---------------- */
@@ -1122,7 +1143,7 @@
     var label = { menang: '<span class="tag good">Menang</span>', kalah: '<span class="tag">Kalah</span>', seri: '<span class="tag">Seri</span>' }[x.hasil] || { menunggu: '<span class="tag">Menunggu</span>', ditolak: '<span class="tag">Ditolak</span>', kedaluwarsa: '<span class="tag">Kedaluwarsa</span>' }[x.status] || '';
     var h = '<div class="hist"><div class="row"><span style="font-weight:700">' + esc(namaItem(x.item)) + ' · vs ' + esc(lawan) + '</span>' + label + '</div>';
     h += '<div class="small muted">Kamu ' + (skorSaya != null ? skorSaya + ' kali (nilai ' + fmtNum(nilaiSaya, 0) + ')' : 'belum tes') + ' · lawan ' + (skorLawan != null ? skorLawan + ' kali (nilai ' + fmtNum(nilaiLawan, 0) + ')' : 'belum tes') + '</div>';
-    if (x.status === 'menunggu' && saya) h += '<div class="btns"><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(teksUndangBattle(x)) + '" target="_blank" rel="noopener">Kirim link ke lawan</a><button type="button" class="btn ghost small" data-bsalin="' + esc(x.id) + '">Salin link</button></div><div class="tiny muted">Berlaku sampai ' + esc(x.batas) + '</div>';
+    if (x.status === 'menunggu' && saya) h += '<div class="btns"><a class="btn ghost small" href="https://wa.me/?text=' + encodeURIComponent(teksUndangBattle(x)) + '" data-catat="undangan|whatsapp|battle" target="_blank" rel="noopener">Kirim link ke lawan</a><button type="button" class="btn ghost small" data-bsalin="' + esc(x.id) + '" data-catat="undangan|salin|battle">Salin link</button></div><div class="tiny muted">Berlaku sampai ' + esc(x.batas) + '</div>';
     if (x.status === 'menunggu' && !saya) h += '<div class="btns"><button type="button" class="btn small" data-bjawab="' + esc(x.id) + '|' + esc(x.item) + '|' + esc(x.penantang) + '">Terima & mulai tes kamera</button><button type="button" class="btn ghost small" data-btolak="' + esc(x.id) + '">Tolak</button></div><div class="tiny muted">Jawab sebelum ' + esc(x.batas) + '</div>';
     if (x.status === 'selesai') h += '<div class="btns"><button type="button" class="btn ghost small" data-bshare="' + esc(x.id) + '">Bagikan hasil battle</button></div>';
     return h + '</div>';
