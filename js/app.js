@@ -4,7 +4,7 @@
  */
 (function () {
   'use strict';
-  var VERSI = '2026.10.11-21';
+  var VERSI = '2026.10.11-22';
   var BACKEND_DIHARAPKAN = '2026.10.11-11';
   (window.VERSI_FILE = window.VERSI_FILE || {})['app.js'] = VERSI;
 
@@ -398,6 +398,7 @@
     if (authMsg) h += '<div class="note goodbox small">' + esc(authMsg) + '</div>';
     h += '<div class="card stack"><button class="btn" id="go-daftar">Buat akun baru</button><button class="btn ghost" id="go-login">Masuk</button>';
     h += '<p class="tiny muted" style="margin:0;text-align:center">Sudah pernah daftar? Pilih Masuk dan cukup isi email.</p></div>';
+    h += '<p class="small muted" style="margin:0;text-align:center">Baru pertama kali? ' + linkManual('Baca manual book SIGAP', 'linkbtn') + ' (PDF, 2 MB).</p>';
     return h;
   }
   function viewDaftar() {
@@ -488,7 +489,7 @@
     if (!S.catatan.length) {
       h += '<div class="card stack"><h2>Mulai dengan tes awal</h2><p class="small muted" style="margin:0">Lakukan dan catat lari 12 menit, ' + esc(itemLabel(ITEMS[1]).toLowerCase()) + ', sit-up, push-up, dan shuttle run sebagai titik mulai. Gunakan stopwatch di menu Catat supaya waktunya sama seperti tes.</p><button class="btn" data-go="catat">Catat tes awal</button></div>';
       if (!p.testDate) h += '<div class="card stack"><p class="small muted" style="margin:0">Isi tanggal tes jasmani di menu Profil supaya hitung mundur dan program latihan menyesuaikan.</p><button class="btn ghost" data-go="profil">Isi tanggal tes</button></div>';
-      return h + kartuBattleBeranda() + adminCard() + grupCard();
+      return h + kartuManual('Baru di SIGAP?', 'Baca manual book untuk memahami cara mencatat latihan, tes kamera, dan fitur lainnya.') + kartuBattleBeranda() + adminCard() + grupCard();
     }
     var g = cur.garjas, gap = g != null ? Math.round((tg - g) * 10) / 10 : null;
     var weak = ITEMS.filter(function (it) { return cur.scores[it.key] != null && cur.scores[it.key] < tg; }).sort(function (a, b) { return cur.scores[a.key] - cur.scores[b.key]; });
@@ -501,6 +502,7 @@
     h += '</section>';
     h += kartuBagikanLatihan();
     h += kartuBattleBeranda();
+    if (S.catatan.length < 3) h += kartuManual('Baru di SIGAP?', 'Baca manual book untuk memahami cara mencatat latihan, tes kamera, dan fitur lainnya.');
 
     var nAntre = S.catatan.filter(function (l) { return l.tertunda; }).length;
     if (nAntre) h += '<div class="note warnbox small">' + nAntre + ' catatan tersimpan di HP dan menunggu dikirim. Pastikan koneksi internet menyala.</div>';
@@ -538,11 +540,18 @@
     api('lengkapiSyarat', { email: S.email, bukti: kb }).then(function (j) { busy = false; bukti = []; S.profil = j.profil; simpanSesi(); sambut = true; render(); toast('Terima kasih! Semua fitur SIGAP sudah terbuka.'); },
       function (e) { busy = false; authMsg = pesanError(e); render(); });
   }
+  /* ---------------- Manual book ---------------- */
+  var MANUAL_URL = 'panduan/Manual-Book-SIGAP.pdf';
+  function linkManual(teks, kelas) { return '<a class="' + (kelas || 'btn ghost') + '" href="' + MANUAL_URL + '" target="_blank" rel="noopener">' + teks + '</a>'; }
+  function kartuManual(judul, ket) {
+    return '<div class="card stack"><div class="row"><h2>' + esc(judul) + '</h2><span class="tag">PDF, 2 MB</span></div><p class="small muted" style="margin:0">' + esc(ket) + '</p>' + linkManual('Buka manual book') + '</div>';
+  }
   function perluSimpanAdmin() { return !!(sambut && S.email && CFG && (CFG.linkGrup || CFG.waAdmin)); }
   function viewSimpanAdmin() {
     var h = '<div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Selamat datang di SIGAP, ' + esc(String(S.profil.name || '').split(' ')[0]) + '!</h1><div class="sub">Biar persiapanmu makin terarah, gabung bersama casis lain dan konsultasikan rencana latihanmu dengan admin.</div></div></div>';
     if (CFG.linkGrup) h += '<div class="card stack"><h2>Grup WhatsApp casis</h2><p class="small muted" style="margin:0">Info seleksi terbaru, jadwal, dan latihan bareng casis lain.</p><a class="btn" href="' + esc(CFG.linkGrup) + '" target="_blank" rel="noopener">Gabung grup WhatsApp</a></div>';
     if (CFG.waAdmin) h += '<div class="card stack"><h2>Konsultasi dengan admin</h2><p class="small muted" style="margin:0">Tanyakan program latihan, target nilai, atau persiapan seleksi. Pesannya sudah disiapkan, tinggal kirim.</p><a class="btn" href="' + esc(linkChatAdmin()) + '" target="_blank" rel="noopener">Chat admin untuk konsultasi</a></div>';
+    h += kartuManual('Manual book SIGAP', 'Panduan langkah demi langkah memakai semua fitur SIGAP, dari mencatat latihan sampai duel live.');
     h += '<button class="btn ghost" id="confirm-admin">Mulai pakai SIGAP</button>';
     return h;
   }
@@ -1330,6 +1339,7 @@
       h += '<div class="small"><b>' + esc(lbl) + '</b> <span class="muted">(' + it.unit + ', hasil → nilai)</span><br>' + esc(t.join(', ')) + '</div>';
     });
     h += '</div></details></div>';
+    h += kartuManual('Manual book', 'Panduan lengkap memakai SIGAP: semua fitur, tips, dan tanya jawab.');
     h += grupCard();
     h += adminCard();
     h += '<div class="card stack"><h2>Akun</h2><p class="small muted" style="margin:0">Masuk sebagai ' + esc(p.email) + '.</p><button class="btn ghost" id="logout">Keluar</button></div>';
@@ -1360,6 +1370,10 @@
     baris(urlOk, 'URL Apps Script di js/config.js', urlOk ? 'Terisi dan formatnya benar.' : (url ? 'Format URL tidak dikenali. Pastikan diakhiri /exec.' : 'Masih kosong. Tempel URL Web app dari Apps Script.'));
     baris(lsSet('pelatih-garjas-cek', 1) ? true : 'warn', 'Penyimpanan di perangkat', 'Dipakai untuk mengingat login. Bila ⚠️, pengguna harus masuk ulang setiap membuka aplikasi.');
     lsSet('pelatih-garjas-cek', null);
+    var idxM = rows.length; baris(null, 'Manual book', 'Memeriksa…');
+    fetch(MANUAL_URL, { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+      rows[idxM] = ''; baris(r.ok ? true : false, 'Manual book', r.ok ? 'File ' + MANUAL_URL + ' tersedia.' : 'File ' + MANUAL_URL + ' tidak ditemukan. Upload Manual-Book-SIGAP.pdf ke folder panduan di repo.'); tampil();
+    }, function () { rows[idxM] = ''; baris('warn', 'Manual book', 'Tidak bisa diperiksa (periksa koneksi).'); tampil(); });
     var idx = rows.length; baris(null, 'Backend Google terhubung', 'Memeriksa…'); tampil();
     if (!urlOk) { rows[idx] = ''; baris(false, 'Backend Google terhubung', 'Dilewati karena URL belum benar.'); tampil(); return; }
     api('ping', null, 'GET').then(function (j) {
