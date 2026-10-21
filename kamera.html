@@ -216,18 +216,25 @@ const ITEM = {
     nama: 'Sit-up', satuan: 'sit-up',
     jenis: { Pria: 'Pria', Wanita: 'Wanita' },
     tabel: { Pria: [[13, 0], [14, 1], [32, 55], [41, 100]], Wanita: [[13, 0], [14, 3], [27, 55], [36, 100]] },
-    param: { down: { label: 'Batas badan turun', min: 10, max: 40, def: 25, unit: '°' }, up: { label: 'Batas badan naik', min: 55, max: 90, def: 70, unit: '°' }, tangan: { label: 'Jarak tangan ke kepala (× panjang badan)', min: 30, max: 90, def: 60, unit: '%' } },
+    param: { down: { label: 'Batas badan turun', min: 10, max: 40, def: 25, unit: '°' }, up: { label: 'Batas badan naik', min: 55, max: 90, def: 70, unit: '°' }, tangan: { label: 'Jarak tangan ke kepala atau bahu (× panjang badan)', min: 40, max: 120, def: 70, unit: '%' } },
     ilustrasi: '<line x1="10" y1="104" x2="310" y2="104" stroke="currentColor" stroke-width="2" opacity=".35"/><circle cx="62" cy="92" r="9" fill="none" stroke="currentColor" stroke-width="3"/><path d="M72 96 L140 100 L170 66 L205 102 M60 84 L76 80" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="270" y="58" width="22" height="42" rx="4" fill="none" stroke="currentColor" stroke-width="3"/><path d="M262 84 L120 84" stroke="currentColor" stroke-width="2" stroke-dasharray="5 5" opacity=".6"/>',
     posisiHp: '± 2 meter, dari samping',
-    panduan: () => ['Sandarkan HP berdiri di lantai, <b>di samping</b> badanmu, sejajar dengan pinggang.', 'Berbaring telentang, <b>lutut ditekuk</b> sekitar 90°, <b>jari tangan terjalin di belakang kepala</b>. Kaki boleh dikaitkan atau ditahan.', 'Pastikan kepala sampai kaki terlihat. Hitungan mundur mulai otomatis saat posisi berbaring terbaca.'],
-    aturan: (p) => ['Badan naik sampai ' + p.up + '° atau lebih dari lantai, lalu turun kembali sampai punggung hampir menempel (di bawah ' + p.down + '°).', 'Lutut harus tetap ditekuk (sekitar 50°–120°).', 'Tangan harus tetap di belakang kepala. Mendorong dengan tangan tidak dihitung.'],
+    panduan: () => ['Sandarkan HP berdiri di lantai, <b>di samping</b> badanmu, sejajar dengan pinggang.', 'Berbaring telentang, <b>lutut ditekuk</b> sekitar 90°, <b>jari tangan terjalin di belakang kepala</b> seperti saat tes. Tangan disilangkan di depan dada juga tetap dihitung. Kaki boleh dikaitkan atau ditahan.', 'Pastikan kepala sampai kaki terlihat. Hitungan mundur mulai otomatis saat posisi berbaring terbaca.'],
+    aturan: (p) => ['Badan naik sampai ' + p.up + '° atau lebih dari lantai, lalu turun kembali sampai punggung hampir menempel (di bawah ' + p.down + '°).', 'Lutut harus tetap ditekuk (sekitar 50°–120°).', 'Tangan tetap di sekitar kepala, leher, atau dada. Mendorong lutut atau lantai dengan tangan tidak dihitung.'],
     nilai(lm, p) {
       const s = sisi(lm);
       const badan = clamp(naik(s.sh, s.hip), -90, 90), lutut = sudut(s.hip, s.knee, s.ank);
       const panjang = jarak(s.sh, s.hip) || 1, kepala = s.ear.visibility > 0.3 ? s.ear : lm[0];
-      const tangan = jarak(s.wr, kepala) / panjang;
-      const lututOk = lutut >= 50 && lutut <= 120, tanganOk = tangan <= p.tangan / 100;
-      const alasan = !lututOk ? (lutut > 120 ? 'Kaki terlalu lurus' : 'Lutut terlalu ditekuk') : !tanganOk ? 'Tangan lepas dari kepala' : '';
+      // Aturan tangan dipermudah: pakai pergelangan yang paling dekat ke kepala atau bahu dari kedua tangan.
+      // Tangan yang tidak terlihat (biasanya tertutup kepala) dianggap aman.
+      const bahu = [lm[11], lm[12]].filter((b) => b && b.visibility > 0.3);
+      const jarakTangan = [lm[15], lm[16]].filter((w) => w && w.visibility > 0.3)
+        .map((w) => Math.min(jarak(w, kepala), ...(bahu.length ? bahu.map((b) => jarak(w, b)) : [jarak(w, s.sh)])) / panjang);
+      const tangan = jarakTangan.length ? Math.min(...jarakTangan) : 0;
+      // Toleransi: tangan baru dianggap lepas bila menjauh beberapa bingkai berturut-turut.
+      this.tanganJauh = tangan <= p.tangan / 100 ? 0 : (this.tanganJauh || 0) + 1;
+      const lututOk = lutut >= 50 && lutut <= 120, tanganOk = this.tanganJauh < 4;
+      const alasan = !lututOk ? (lutut > 120 ? 'Kaki terlalu lurus' : 'Lutut terlalu ditekuk') : !tanganOk ? 'Tangan menjauh dari kepala dan dada' : '';
       return {
         vis: s.vis, v: badan, awal: (v) => v < p.down, puncak: (v) => v > p.up, progres: (v) => clamp(v / p.up, 0, 1),
         ok: lututOk && tanganOk, alasan, siapMsg: alasan ? alasan + '. Perbaiki posisi untuk mulai' : 'Berbaring telentang untuk mulai',
@@ -236,7 +243,7 @@ const ITEM = {
       };
     },
     kurang: 'Kurang naik',
-    tips: { 'Kurang naik': 'angkat badan sampai hampir tegak, siku mendekati lutut.', 'Tangan lepas dari kepala': 'jaga jari tetap terjalin di belakang kepala, jangan mendorong dengan tangan.', 'Kaki terlalu lurus': 'tekuk lutut sekitar 90° dan kaitkan kaki supaya tidak terangkat.', 'Lutut terlalu ditekuk': 'geser telapak kaki sedikit menjauh sampai lutut sekitar 90°.' }
+    tips: { 'Kurang naik': 'angkat badan sampai hampir tegak, siku mendekati lutut.', 'Tangan menjauh dari kepala dan dada': 'jaga tangan di belakang kepala atau di depan dada, jangan mendorong lutut atau lantai.', 'Kaki terlalu lurus': 'tekuk lutut sekitar 90° dan kaitkan kaki supaya tidak terangkat.', 'Lutut terlalu ditekuk': 'geser telapak kaki sedikit menjauh sampai lutut sekitar 90°.' }
   },
 
   pullup: {
@@ -372,6 +379,7 @@ async function siapkanModel() {
 }
 
 async function mulai() {
+  ITEM.situp.tanganJauh = 0;
   const msg = $('#setup-msg'), btn = $('#start');
   msg.textContent = '';
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'Browser ini tidak bisa membuka kamera. Coba Chrome atau Safari versi terbaru.'; return; }
@@ -782,6 +790,7 @@ document.addEventListener('click', (e) => {
     location.href = './?bagikan=arena';
   }
 });
+if (window.__SIGAP_UJI) window.__SIGAP_UJI.ITEM = ITEM;
 if (window.__SIGAP_UJI) window.__SIGAP_UJI.arena = { siap: (v) => { A.kunciUji = true; arenaSiap(v); }, sah: () => catatSah(), info: () => ({ fase: A && A.fase, kode: A && A.kode, peserta: A && Object.keys(A.peserta).length, hasil: A && A.hasil, count: S && S.count }) };
 if (A) {
   $('#setup').style.display = 'none';
