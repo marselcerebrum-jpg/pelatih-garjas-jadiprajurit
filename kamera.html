@@ -383,6 +383,7 @@ async function siapkanModel() {
 
 async function mulai() {
   ITEM.situp.tanganJauh = 0; ITEM.pullup.buruk = 0;
+  try { $('#time').style.color = ''; } catch (e) { }
   const msg = $('#setup-msg'), btn = $('#start');
   msg.textContent = '';
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'Browser ini tidak bisa membuka kamera. Coba Chrome atau Safari versi terbaru.'; return; }
@@ -485,28 +486,46 @@ function gambar(ctx, garis) {
 /* ================= Waktu & hitungan ================= */
 function hitungMundur() {
   S.countdown = true; const el = $('#countdown'); let n = 3;
-  el.style.display = 'flex'; el.textContent = n; bunyi(660, 0.15); setStatus('Bersiap', 'ok');
+  el.style.display = 'flex'; el.textContent = n; bunyi(660, 0.15); ucapWaktu(ANGKA[n]); setStatus('Bersiap', 'ok');
   const t = setInterval(() => {
     n--;
-    if (n > 0) { el.textContent = n; bunyi(660, 0.15); }
-    else { clearInterval(t); el.style.display = 'none'; bunyi(990, 0.35); S.countdown = false; S.mulai = performance.now(); S.fase = 'awal'; S.maxProg = 0; setStatus('Mulai!', 'ok'); }
+    if (n > 0) { el.textContent = n; bunyi(660, 0.15); ucapWaktu(ANGKA[n]); }
+    else { clearInterval(t); el.style.display = 'none'; bunyi(990, 0.35); ucapWaktu('Mulai!'); S.countdown = false; S.mulai = performance.now(); S.fase = 'awal'; S.maxProg = 0; S.isyarat = {}; setStatus('Mulai!', 'ok');
+      // Pengingat waktu dijalankan penghitung tersendiri, supaya tidak ada detik yang terlewat saat pengolahan kamera berat.
+      clearInterval(S.ivWaktu); S.ivWaktu = setInterval(() => { if (!S || S.selesai || !S.mulai) { clearInterval(S && S.ivWaktu); return; } tickWaktu(performance.now()); }, 200); }
   }, 1000);
 }
 function tickWaktu(now) {
   if (!S.mulai || S.selesai) return;
+  now = performance.now(); // selalu pakai jam terkini, bukan waktu bingkai kamera yang bisa tertinggal
   const det = (now - S.mulai) / 1000;
   if (opt.mode === 'tes') {
     const sisa = Math.max(0, 60 - det);
     $('#time').textContent = '0:' + String(Math.ceil(sisa)).padStart(2, '0');
-    if (A && A.fase === 'duel' && sisa <= 10 && !A.sepuluh) { A.sepuluh = true; $('#time').style.color = '#F2A766'; ucapA('Sepuluh detik terakhir!'); }
-    if (sisa <= 0) { bunyi(880, 0.25); setTimeout(() => bunyi(880, 0.25), 300); setTimeout(() => bunyi(880, 0.5), 600); try { navigator.vibrate && navigator.vibrate([300, 120, 300]); } catch (e) { } berhenti(true); }
+    if (A && A.fase === 'duel' && sisa <= 10 && !A.sepuluh) { A.sepuluh = true; $('#time').style.color = '#F2A766'; }
+    // Pengingat waktu: 30 detik, 15 detik, lalu 5-4-3-2-1. Jendela waktu mencegah semua bunyi menumpuk bila layar sempat tertahan.
+    S.isyarat = S.isyarat || {};
+    const sekali = (k, f) => { if (!S.isyarat[k]) { S.isyarat[k] = 1; f(); } };
+    if (sisa <= 30 && sisa > 28) sekali('30', () => { bunyi(880, 0.12); setTimeout(() => bunyi(880, 0.12), 180); ucapWaktu('Tiga puluh detik lagi'); });
+    if (sisa <= 15 && sisa > 13) sekali('15', () => { bunyi(880, 0.12); setTimeout(() => bunyi(880, 0.12), 180); ucapWaktu('Lima belas detik lagi'); $('#time').style.color = '#F2A766'; });
+    const n5 = Math.ceil(sisa);
+    if (n5 >= 1 && n5 <= 5 && sisa > 0) sekali('n' + n5, () => { bunyi(990, 0.1); ucapWaktu(ANGKA[n5]); });
+    if (sisa <= 0) { ucapWaktu('Waktu habis!'); bunyi(880, 0.25); setTimeout(() => bunyi(880, 0.25), 300); setTimeout(() => bunyi(880, 0.5), 600); try { navigator.vibrate && navigator.vibrate([300, 120, 300]); } catch (e) { } berhenti(true); }
   } else { const d = Math.floor(det); $('#time').textContent = Math.floor(d / 60) + ':' + String(d % 60).padStart(2, '0'); }
+}
+// Pengumuman waktu: memotong ucapan lain, lalu menahan ucapan hitungan gerakan sebentar supaya tidak bertumpuk.
+const ANGKA = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima'];
+function ucapWaktu(t) {
+  if (S) S.diamHingga = performance.now() + 1600;
+  try { if (!$('#voice').checked || !('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'id-ID'; u.rate = 1.1; speechSynthesis.speak(u); } catch (e) { }
 }
 function catatSah() {
   S.count++; $('#count').textContent = S.count; bunyi(1046, 0.08);
   if (A && A.fase === 'duel') { kirimA('skor', { token: A.token, skor: S.count }); renderHudA(); cekPemimpin(); }
   feedback('Bagus! ' + S.count, 'ok');
-  if ($('#voice').checked && 'speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(String(S.count)); u.lang = 'id-ID'; u.rate = 1.3; speechSynthesis.speak(u); }
+  const kini = performance.now(), sisaTes = opt.mode === 'tes' && S.mulai ? 60 - (kini - S.mulai) / 1000 : 99;
+  const tenang = (S.diamHingga && kini < S.diamHingga) || sisaTes <= 5.5;
+  if (!tenang && $('#voice').checked && 'speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(String(S.count)); u.lang = 'id-ID'; u.rate = 1.3; speechSynthesis.speak(u); }
 }
 function catatTidakSah(alasan) {
   S.bad++; S.alasan[alasan] = (S.alasan[alasan] || 0) + 1;
@@ -794,6 +813,7 @@ document.addEventListener('click', (e) => {
   }
 });
 if (window.__SIGAP_UJI) window.__SIGAP_UJI.ITEM = ITEM;
+if (window.__SIGAP_UJI) { window.__SIGAP_UJI.hitung = () => hitungMundur(); window.__SIGAP_UJI.sah = () => catatSah(); window.__SIGAP_UJI.majukan = (det) => { S.mulai -= det * 1000; }; }
 if (window.__SIGAP_UJI) window.__SIGAP_UJI.arena = { siap: (v) => { A.kunciUji = true; arenaSiap(v); }, sah: () => catatSah(), info: () => ({ fase: A && A.fase, kode: A && A.kode, peserta: A && Object.keys(A.peserta).length, hasil: A && A.hasil, count: S && S.count }) };
 if (A) {
   $('#setup').style.display = 'none';

@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-23** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-24** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -89,6 +89,13 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 **Casis wajib menyimpan nomor admin.** Setelah daftar, kartu kontak admin langsung terbuka otomatis di HP casis. Casis tidak bisa masuk ke aplikasi sebelum mencentang "Saya sudah menyimpan nomor admin". Konfirmasinya tercatat di kolom **Simpan Nomor Admin** pada tab Peserta. Casis yang mendaftar sebelum fitur ini juga akan diminta langkah yang sama saat membuka aplikasi.
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
+
+## Suara hitung mundur dan pengingat waktu
+
+- **Sebelum mulai** (tes kamera dan alat bantu di menu Catat): beep dan suara "Tiga, Dua, Satu, Mulai!".
+- **Tes 1 menit dan timer 1 menit:** "Tiga puluh detik lagi" dan "Lima belas detik lagi" (masing-masing dua beep pendek), lalu beep dan suara "Lima, Empat, Tiga, Dua, Satu", diakhiri "Waktu habis!".
+- Di tes kamera, ucapan hitungan gerakan diam sesaat saat pengumuman waktu dan diganti beep saja di 5 detik terakhir, supaya tidak tertukar dengan hitungan waktu.
+- Pengingat waktu di tes kamera dijalankan penghitung tersendiri (5 kali per detik), sehingga tidak terlewat walau pengolahan kamera sedang berat.
 
 ## Beranda: sorotan Battle dan daftar fitur
 
