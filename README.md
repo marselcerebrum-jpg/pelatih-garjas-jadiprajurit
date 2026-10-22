@@ -4,7 +4,7 @@
 
 Web untuk casis TNI mencatat latihan jasmani, melihat prediksi nilai jasmani, dan mendapat program latihan mingguan. Semua data pendaftaran dan catatan latihan langsung tersimpan di Google Sheets.
 
-Versi web: **2026.10.11-24** · Versi backend: **2026.10.11-5**
+Versi web: **2026.10.11-25** · Versi backend: **2026.10.11-5**
 
 ## Fitur
 
@@ -90,6 +90,12 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
 
+## Catatan versi 2026.10.11-25
+
+- **Pull-up lebih mudah:** lengan lurus cukup 135°, dagu boleh mendekati palang (toleransi 35%), posisi atas juga terhitung bila siku sudah tertekuk penuh saat mulut tidak terbaca, ayunan sampai 130% lebar bahu, dan pelanggaran baru dihitung setelah 6 bingkai berturut-turut. Setengah gerakan dan kipping tetap tidak sah.
+- **Duel live:** peserta yang menyerah tidak lagi memotong duel peserta lain. Layar tunggu menampilkan skor lawan secara langsung, hasil baru disimpan setelah semua selesai atau waktu duel habis, dan hasil di semua HP sama.
+- **Akun SIGAP terpisah dari akun aplikasi JadiPrajurit:** pengingat di halaman awal, keterangan kolom email, dan pesan saat email belum punya akun SIGAP.
+
 ## Suara hitung mundur dan pengingat waktu
 
 - **Sebelum mulai** (tes kamera dan alat bantu di menu Catat): beep dan suara "Tiga, Dua, Satu, Mulai!".
@@ -105,7 +111,7 @@ Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nam
 
 ## Manual book
 
-File `panduan/Manual-Book-SIGAP.pdf` (15 halaman, sekitar 2 MB) adalah panduan pengguna. Tautannya muncul di halaman awal, halaman sambutan setelah daftar, Beranda (hanya untuk pengguna dengan kurang dari 3 catatan), dan menu Profil. Halaman `?cek=1` memeriksa apakah file ini sudah ada di repo. Untuk memperbarui manual, cukup ganti file PDF dengan nama yang sama di folder `panduan`.
+File `Manual-Book-SIGAP.pdf` di halaman utama repo (15 halaman, sekitar 2 MB) adalah panduan pengguna. Tautannya muncul di halaman awal, halaman sambutan setelah daftar, Beranda (hanya untuk pengguna dengan kurang dari 3 catatan), dan menu Profil. Halaman `?cek=1` memeriksa apakah file ini sudah ada di repo. Untuk memperbarui manual, cukup ganti file PDF dengan nama yang sama di halaman utama repo.
 
 ## Pencatatan tombol Bagikan
 

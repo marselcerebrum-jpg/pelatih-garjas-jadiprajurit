@@ -250,13 +250,13 @@ const ITEM = {
     nama: 'Pull-up', namaW: 'Chinning', satuan: 'gerakan', ujiCoba: true,
     jenis: { Pria: 'Pria (pull-up)', Wanita: 'Wanita (chinning)' },
     tabel: { Pria: [[0, 0], [1, 15], [18, 100]], Wanita: [[11, 0], [12, 2], [13, 4], [14, 6], [15, 8], [16, 10], [17, 12], [18, 14], [19, 16], [20, 18], [21, 20], [22, 22], [23, 24], [24, 26], [25, 29], [26, 31], [27, 33], [28, 35], [29, 37], [30, 39], [31, 43], [32, 46], [33, 49], [34, 51], [35, 53], [36, 55], [37, 57], [38, 58], [39, 60], [40, 62], [41, 63], [42, 65], [43, 67], [44, 68], [45, 70], [46, 72], [47, 73], [48, 75], [49, 77], [50, 78], [51, 80], [52, 82], [53, 83], [54, 85], [55, 87], [56, 88], [57, 90], [58, 92], [59, 93], [60, 95], [61, 97], [62, 98], [63, 100]] },
-    param: { lurus: { label: 'Batas lengan lurus', min: 130, max: 175, def: 145, unit: '°' }, dagu: { label: 'Toleransi dagu di bawah palang', min: -15, max: 40, def: 20, unit: '%' }, ayun: { label: 'Batas ayunan (× lebar bahu)', min: 30, max: 200, def: 100, unit: '%' } },
+    param: { lurus: { label: 'Batas lengan lurus', min: 120, max: 175, def: 135, unit: '°' }, dagu: { label: 'Toleransi dagu di bawah palang', min: -15, max: 60, def: 35, unit: '%' }, ayun: { label: 'Batas ayunan (× lebar bahu)', min: 30, max: 250, def: 130, unit: '%' } },
     ilustrasi: '<line x1="40" y1="20" x2="160" y2="20" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="100" cy="42" r="9" fill="none" stroke="currentColor" stroke-width="3"/><path d="M80 20 L86 50 L100 54 L114 50 L120 20 M100 54 L100 82 M100 82 L94 110 M100 82 L106 110" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><line x1="10" y1="112" x2="310" y2="112" stroke="currentColor" stroke-width="2" opacity=".35"/><rect x="258" y="70" width="22" height="42" rx="4" fill="none" stroke="currentColor" stroke-width="3" transform="rotate(-12 269 91)"/><path d="M252 86 L130 60" stroke="currentColor" stroke-width="2" stroke-dasharray="5 5" opacity=".6"/>',
     posisiHp: '± 2–3 meter, serong 45°, agak mendongak',
     panduan: (g) => g === 'Wanita'
       ? ['Taruh HP <b>di samping</b> sekitar 2 meter, sehingga palang, kepala, dan kaki terlihat.', 'Bergantung pada palang dengan badan lurus dan tumit di tanah.', 'Usahakan cahaya dari depan, jangan membelakangi langit terang.']
       : ['Sandarkan HP sekitar 2–3 meter <b>di depan agak serong (45°)</b>, sedikit mendongak sampai <b>palang dan kaki</b> terlihat.', 'Bergantung dengan lengan lurus. Hitungan mundur mulai otomatis.', 'Usahakan cahaya dari depan, jangan membelakangi langit terang.'],
-    aturan: (p, g) => ['Naik sampai dagu sejajar atau melewati palang.', 'Turun sampai lengan hampir lurus (' + p.lurus + '° atau lebih).', g === 'Wanita' ? 'Badan tetap lurus dari bahu sampai tumit.' : 'Harus menggantung. Ayunan badan yang besar (kipping) tidak dihitung.'],
+    aturan: (p, g) => ['Naik sampai dagu mendekati atau melewati palang.', 'Turun sampai lengan hampir lurus (' + p.lurus + '° atau lebih).', g === 'Wanita' ? 'Badan tetap lurus dari bahu sampai tumit.' : 'Harus menggantung. Ayunan badan yang besar (kipping) tidak dihitung.'],
     nilai(lm, p, g, sesi) {
       const W = g === 'Wanita';
       const wr = { x: (lm[15].x + lm[16].x) / 2, y: (lm[15].y + lm[16].y) / 2 };
@@ -272,10 +272,11 @@ const ITEM = {
       const menggantung = wr.y < sh.y;
       // Patokan palang dan bahu diambil saat posisi awal (sebelum mulai), lalu dibekukan.
       if (sesi && !sesi.mulai && menggantung && lurusLengan) { sesi.wrDasar = wr.y; sesi.shDasar = sh.y; sesi.ayunDasar = (hip.x - wr.x) / bahuLebar; }
-      const badanNaik = !sesi || sesi.shDasar == null || sh.y < sesi.shDasar - 0.3 * tinggiKepala;
-      const diAtas = mulut.y < wr.y + (p.dagu / 100) * tinggiKepala && badanNaik;
+      const badanNaik = !sesi || sesi.shDasar == null || sh.y < sesi.shDasar - 0.25 * tinggiKepala;
+      // Posisi atas dihitung bila dagu mendekati palang, atau siku sudah sangat tertekuk (berguna saat mulut tidak terbaca kamera).
+      const diAtas = badanNaik && (mulut.y < wr.y + (p.dagu / 100) * tinggiKepala || siku < 75);
       let ok = true, alasan = '';
-      if (sesi && sesi.mulai && sesi.wrDasar != null && Math.abs(wr.y - sesi.wrDasar) > 1.0 * tinggiKepala) { ok = false; alasan = 'Tangan tidak menggenggam palang'; }
+      if (sesi && sesi.mulai && sesi.wrDasar != null && Math.abs(wr.y - sesi.wrDasar) > 1.5 * tinggiKepala) { ok = false; alasan = 'Tangan tidak menggenggam palang'; }
       if (W) {
         const s = sisi(lm);
         if (sudut(s.sh, s.hip, s.ank) < 140) { ok = false; alasan = 'Badan tidak lurus'; }
@@ -283,7 +284,7 @@ const ITEM = {
       if (!menggantung) { ok = false; alasan = W ? 'Tangan harus menggenggam palang di atas bahu' : 'Tidak menggantung'; }
       // Toleransi: pelanggaran baru dihitung bila terbaca beberapa bingkai berturut-turut, supaya salah baca sesaat tidak membatalkan gerakan.
       this.buruk = ok ? 0 : (this.buruk || 0) + 1;
-      if (!ok && menggantung && this.buruk < 4) { ok = true; alasan = ''; }
+      if (!ok && menggantung && this.buruk < 6) { ok = true; alasan = ''; }
       return {
         vis: Math.max(vk, vn), v: siku, awal: (v) => v > p.lurus && !diAtas && menggantung, puncak: () => diAtas, progres: (v) => clamp((170 - v) / 100, 0, 1),
         ok, alasan, siapMsg: !menggantung ? (W ? 'Genggam palang dan condongkan badan' : 'Bergantung pada palang dengan lengan lurus') : alasan ? alasan : 'Luruskan lengan untuk mulai',
@@ -292,7 +293,7 @@ const ITEM = {
       };
     },
     kurang: 'Dagu tidak melewati palang',
-    tips: { 'Dagu tidak melewati palang': 'tarik badan lebih tinggi sampai dagu sejajar atau melewati palang.', 'Badan mengayun': 'diamkan badan sebelum menarik, jangan memakai ayunan kaki.', 'Badan tidak lurus': 'kencangkan perut dan bokong supaya badan tetap lurus.', 'Tidak menggantung': 'pastikan kaki tidak menapak dan lengan lurus di bawah palang.' }
+    tips: { 'Dagu tidak melewati palang': 'tarik badan lebih tinggi sampai dagu mendekati atau melewati palang.', 'Badan mengayun': 'diamkan badan sebelum menarik, jangan memakai ayunan kaki.', 'Badan tidak lurus': 'kencangkan perut dan bokong supaya badan tetap lurus.', 'Tidak menggantung': 'pastikan kaki tidak menapak dan lengan lurus di bawah palang.' }
   }
 };
 
@@ -657,10 +658,10 @@ function renderHudA() {
   if (ps.length === 2) {
     const me = ps.find((p) => p.token === A.token) || ps[0], lawan = ps.find((p) => p !== me) || ps[1];
     const nyawa = (s) => Math.max(0, 100 - s * 2.5);
-    el.innerHTML = '<div class="a-panel"><div class="a-vs"><div><div class="a-nm">' + esc(me.nama) + '</div><div class="a-hp"><i style="width:' + nyawa(skor(lawan.token)) + '%;background:#8CCB86"></i></div><div class="a-sk">' + skor(me.token) + '</div></div><div class="a-v">VS</div><div><div class="a-nm">' + esc(lawan.nama) + '</div><div class="a-hp"><i style="width:' + nyawa(skor(me.token)) + '%;background:#E05A3A"></i></div><div class="a-sk" style="color:#C3D2BD">' + skor(lawan.token) + '</div></div></div></div>';
+    el.innerHTML = '<div class="a-panel"><div class="a-vs"><div><div class="a-nm">' + esc(me.nama) + '</div><div class="a-hp"><i style="width:' + nyawa(skor(lawan.token)) + '%;background:#8CCB86"></i></div><div class="a-sk">' + skor(me.token) + '</div></div><div class="a-v">VS</div><div><div class="a-nm">' + esc(lawan.nama) + (A.selesai[lawan.token] ? ' (selesai)' : '') + '</div><div class="a-hp"><i style="width:' + nyawa(skor(me.token)) + '%;background:#E05A3A"></i></div><div class="a-sk" style="color:#C3D2BD">' + skor(lawan.token) + '</div></div></div></div>';
   } else {
     const urut = ps.slice().sort((a, b) => skor(b.token) - skor(a.token));
-    el.innerHTML = '<div class="a-panel">' + urut.map((p, i) => '<div class="a-row"><span>' + (i + 1) + '. ' + esc(p.nama) + (p.token === A.token ? ' (kamu)' : '') + '</span><b>' + skor(p.token) + '</b></div>').join('') + '</div>';
+    el.innerHTML = '<div class="a-panel">' + urut.map((p, i) => '<div class="a-row"><span>' + (i + 1) + '. ' + esc(p.nama) + (p.token === A.token ? ' (kamu)' : '') + (A.selesai[p.token] ? ' (selesai)' : '') + '</span><b>' + skor(p.token) + '</b></div>').join('') + '</div>';
   }
 }
 function cekPemimpin() {
@@ -696,9 +697,9 @@ async function arenaHubungkan() {
   });
   A.ch.on('broadcast', { event: 'auto' }, ({ payload }) => { if (!A || A.fase !== 'lobby') return; if (payload && payload.batal) setStatus('Ada peserta yang belum siap. Menunggu…', ''); else { ucapA('Semua siap, duel dimulai!'); setStatus('Semua siap! Duel dimulai…', 'ok'); } });
   A.ch.on('broadcast', { event: 'mulai' }, ({ payload }) => arenaMulai(payload));
-  A.ch.on('broadcast', { event: 'skor' }, ({ payload }) => { if (A.fase === 'duel' && payload && payload.token) { A.skor[payload.token] = payload.skor; renderHudA(); cekPemimpin(); } });
-  A.ch.on('broadcast', { event: 'selesai' }, ({ payload }) => { if (payload && payload.token) { A.skor[payload.token] = payload.skor; A.selesai[payload.token] = true; renderTunggu(); cekSemuaSelesai(); } });
-  A.ch.on('broadcast', { event: 'hasil' }, ({ payload }) => { if (payload && payload.ronde === A.ronde) tampilHasilA(payload); });
+  A.ch.on('broadcast', { event: 'skor' }, ({ payload }) => { if (!payload || !payload.token || (A.fase !== 'duel' && A.fase !== 'tunggu')) return; A.skor[payload.token] = payload.skor; if (A.fase === 'duel') { renderHudA(); cekPemimpin(); } else renderTunggu(); });
+  A.ch.on('broadcast', { event: 'selesai' }, ({ payload }) => { if (payload && payload.token) { A.skor[payload.token] = payload.skor; A.selesai[payload.token] = true; if (A.fase === 'duel') renderHudA(); renderTunggu(); cekSemuaSelesai(); } });
+  A.ch.on('broadcast', { event: 'hasil' }, ({ payload }) => { if (!payload || payload.ronde !== A.ronde) return; if (A.fase === 'duel') { A.hasilTertunda = payload; return; } tampilHasilA(payload); });
   A.ch.on('broadcast', { event: 'ulang' }, ({ payload }) => arenaUlang(payload && payload.ronde));
   A.ch.subscribe((st) => {
     if (st === 'SUBSCRIBED') { A.terhubung = true; A.status = 'Terhubung'; lacak(); }
@@ -722,7 +723,7 @@ function arenaSiap(v) { if (!A || A.fase !== 'lobby' || A.siap === v) return; A.
 function arenaMulai(p) {
   if (!A || A.fase === 'duel' || !S || !stream) return;
   if (!p || !Array.isArray(p.duel) || p.duel.indexOf(A.token) < 0) return;
-  batalAuto(); A.fase = 'duel'; A.ronde = p.ronde; A.duel = p.duel; A.namaDuel = p.nama || {}; A.skor = {}; A.selesai = {}; A.hasil = null; A.pemimpin = ''; A.sepuluh = false;
+  batalAuto(); A.fase = 'duel'; A.ronde = p.ronde; A.duel = p.duel; A.tAkhir = Date.now() + 63000; A.hasilTertunda = null; A.namaDuel = p.nama || {}; A.skor = {}; A.selesai = {}; A.hasil = null; A.pemimpin = ''; A.sepuluh = false;
   $('#finish').textContent = 'Menyerah'; $('#finish').disabled = false;
   renderHudA(); ucapA('Siap'); hitungMundur();
 }
@@ -735,7 +736,11 @@ function hostMulai() {
 function renderTunggu() {
   if (!A || A.fase !== 'tunggu') return;
   const r = $('#result');
-  r.innerHTML = '<div class="stack" style="gap:6px"><div class="sub">Arena SIGAP · ruang ' + esc(A.kode) + '</div><h1>Menunggu hasil…</h1></div><div class="card stack">' + A.duel.map((t) => '<div style="display:flex;justify-content:space-between"><span>' + esc((A.namaDuel || {})[t] || '?') + '</span><b>' + (A.selesai[t] ? (A.skor[t] != null ? A.skor[t] : '') + ' · selesai' : 'masih bertanding…') + '</b></div>').join('') + '</div>';
+  const baris = A.duel.map((t) => {
+    const nama = (A.namaDuel || {})[t] || '?', skor = A.skor[t] != null ? A.skor[t] : 0, saya = t === A.token;
+    return '<div style="display:flex;justify-content:space-between;gap:10px"><span>' + esc(nama) + (saya ? ' (kamu)' : '') + '</span><b>' + skor + ' · ' + (A.selesai[t] ? 'selesai' : 'masih bertanding…') + '</b></div>';
+  }).join('');
+  r.innerHTML = '<div class="stack" style="gap:6px"><div class="sub">Arena SIGAP · ruang ' + esc(A.kode) + '</div><h1>Menunggu hasil…</h1><p class="small muted" style="margin:0">Hasil keluar setelah semua peserta selesai atau waktu duel habis.</p></div><div class="card stack">' + baris + '</div>';
   r.style.display = 'flex'; $('#setup').style.display = 'none'; $('#arena-lobby').style.display = 'none';
 }
 function arenaAkhir() {
@@ -743,7 +748,10 @@ function arenaAkhir() {
   kirimA('selesai', { token: A.token, skor: S.count, ronde: A.ronde });
   renderTunggu();
   clearTimeout(A.timer);
-  A.timer = setTimeout(() => { if (A.fase === 'tunggu') { if (A.host) simpanHasil(); else tampilHasilA(hasilLokal(), true); } }, A.host ? 12000 : 25000);
+  if (A.hasilTertunda) { tampilHasilA(A.hasilTertunda); return; }
+  // Tunggu sampai waktu duel semua peserta habis (bukan hanya waktu sendiri), supaya peserta yang menyerah tidak memotong duel lawan.
+  const sisaDuel = Math.max(0, (A.tAkhir || Date.now()) - Date.now());
+  A.timer = setTimeout(() => { if (A.fase === 'tunggu') { if (A.host) simpanHasil(); else tampilHasilA(hasilLokal(), true); } }, sisaDuel + (A.host ? 8000 : 20000));
   cekSemuaSelesai();
 }
 function cekSemuaSelesai() { if (A && A.host && A.fase === 'tunggu' && A.duel.every((t) => A.selesai[t])) simpanHasil(); }
