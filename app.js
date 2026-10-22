@@ -1415,9 +1415,9 @@
     function tampil() { $('#app').innerHTML = '<div class="stack"><div class="top"><div class="stack" style="gap:6px">' + brand() + '<h1>Cek sistem</h1><div class="sub">Versi web ' + VERSI + '</div></div></div><div class="card cek">' + rows.join('') + '</div><a class="btn ghost" href="./">Buka aplikasi</a></div>'; }
     var vf = window.VERSI_FILE || {}, meta = (document.querySelector('meta[name="tmb-versi"]') || {}).content;
     var cssV = getComputedStyle(document.documentElement).getPropertyValue('--versi').replace(/["'\s]/g, '');
-    var semua = { 'index.html': meta, 'css/style.css': cssV, 'js/nilai.js': vf['nilai.js'], 'js/app.js': vf['app.js'] };
+    var semua = { 'index.html': meta, 'style.css': cssV, 'nilai.js': vf['nilai.js'], 'app.js': vf['app.js'] };
     var beda = Object.keys(semua).filter(function (k) { return semua[k] !== VERSI; });
-    baris(!beda.length, 'Semua file versi ' + VERSI, beda.length ? 'Belum terbaru: ' + esc(beda.map(function (k) { return k + ' (' + (semua[k] || 'tidak terbaca') + ')'; }).join(', ')) + '. Upload ulang file tersebut ke folder yang benar.' : 'index.html, css/style.css, js/nilai.js, js/app.js');
+    baris(!beda.length, 'Semua file versi ' + VERSI, beda.length ? 'Belum terbaru: ' + esc(beda.map(function (k) { return k + ' (' + (semua[k] || 'tidak terbaca') + ')'; }).join(', ')) + '. Upload ulang file tersebut ke halaman utama repo.' : 'index.html, style.css, nilai.js, app.js');
     var url = window.CONFIG && window.CONFIG.APPS_SCRIPT_URL;
     var urlOk = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url || '');
     baris(urlOk, 'URL Apps Script di js/config.js', urlOk ? 'Terisi dan formatnya benar.' : (url ? 'Format URL tidak dikenali. Pastikan diakhiri /exec.' : 'Masih kosong. Tempel URL Web app dari Apps Script.'));

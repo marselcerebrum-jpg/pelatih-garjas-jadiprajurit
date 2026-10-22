@@ -90,6 +90,14 @@ Perubahan di tab Standar Nilai dan Pengaturan langsung berlaku tanpa deploy ulan
 
 Langkah wajib ini hanya aktif bila `wa_admin` di tab Pengaturan sudah diisi. Nama kontaknya diambil dari `nama_admin`.
 
+## Susunan file (sejak versi 2026.10.11-25)
+
+File yang sering diperbarui ada **langsung di halaman utama repo**, supaya upload cukup dengan menyeret file tanpa folder:
+
+- `index.html`, `kamera.html`, `lari.html`, `app.js`, `nilai.js`, `style.css`, `Manual-Book-SIGAP.pdf`, `README.md`
+
+File yang jarang berubah tetap di foldernya: `js/config.js` (alamat Apps Script dan Supabase), `apps-script/Code.gs`, `assets/`, dan `vendor/`.
+
 ## Catatan versi 2026.10.11-25
 
 - **Pull-up lebih mudah:** lengan lurus cukup 135°, dagu boleh mendekati palang (toleransi 35%), posisi atas juga terhitung bila siku sudah tertekuk penuh saat mulut tidak terbaca, ayunan sampai 130% lebar bahu, dan pelanggaran baru dihitung setelah 6 bingkai berturut-turut. Setengah gerakan dan kipping tetap tidak sah.
